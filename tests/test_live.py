@@ -1,13 +1,15 @@
+import os
 import sys
 import tempfile
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from test_transfer import source  # noqa: E402
-from fltransfer import live  # noqa: E402
+from fltransfer import export, live  # noqa: E402
 from fltransfer.flp import FLPError, Project  # noqa: E402
 from fltransfer.model import Source  # noqa: E402
 
@@ -44,6 +46,66 @@ class LiveTest(unittest.TestCase):
                 mock.patch.object(live, "fl_running", return_value=1):
             live.send(f, exe="X:/FL64.exe")
         self.assertEqual(popen.call_args[0][0], ["X:/FL64.exe", str(f)])
+
+    def test_running_fl_on_custom_path_is_used_for_sending(self):
+        exe = self.root / "音乐 工具" / "FL Studio 21" / "FL64.exe"
+        exe.parent.mkdir(parents=True)
+        exe.touch()
+        other = self.root / "FL.exe"
+        other.touch()
+        preset = self.root / "My Pattern.fst"
+        preset.touch()
+        with mock.patch.object(live, "fl_windows", return_value=[(1, 42, "Song.flp - FL Studio")]), \
+                mock.patch.object(live, "_process_image", return_value=str(exe)) as lookup, \
+                mock.patch.object(live, "setting", return_value=str(other)), \
+                mock.patch.object(live, "_helpers", []), mock.patch.object(live.subprocess, "Popen") as launch:
+            self.assertEqual(live.send(preset), str(exe))
+        lookup.assert_called_once_with(42)
+        launch.assert_called_once_with([str(exe), str(preset)], close_fds=True)
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows process lookup")
+    def test_reads_native_executable_path(self):
+        import _winapi
+        self.assertTrue(os.path.samefile(live._process_image(os.getpid()), _winapi.GetModuleFileName(0)))
+
+    def test_machine_registry_can_supply_exe_without_install_or_shared_data(self):
+        exe = self.root / "FL64.exe"
+        exe.touch()
+        reg = mock.Mock(HKEY_CURRENT_USER=1, HKEY_LOCAL_MACHINE=2, KEY_READ=8, KEY_WOW64_64KEY=32, KEY_WOW64_32KEY=16)
+        records = {(1, 8 | 32): {"Install path": str(self.root / "Removed FL")},
+                   (2, 8 | 16): {"FL Studio": str(exe)}}
+
+        def open_key(hive, subkey, reserved, flags):
+            self.assertEqual(subkey, r"SOFTWARE\Image-Line\Shared\Paths")
+            if (hive, flags) not in records:
+                raise FileNotFoundError
+            return nullcontext(records[hive, flags])
+
+        def read_value(key, name):
+            if name not in key:
+                raise FileNotFoundError
+            return key[name], 1
+
+        reg.OpenKey.side_effect = open_key
+        reg.QueryValueEx.side_effect = read_value
+        with mock.patch.dict(sys.modules, winreg=reg), mock.patch.object(live, "fl_windows", return_value=[]), \
+                mock.patch.object(live, "setting", return_value=None):
+            self.assertEqual(live.find_fl(), str(exe))
+            self.assertEqual(export._fl_dirs(), (str(self.root), None))
+            records[1, 8 | 32]["Shared data"] = str(self.root / "User data")
+            self.assertEqual(export._fl_dirs(), (str(self.root), str(self.root / "User data" / "FL Studio")))
+
+    def test_invalid_saved_and_registry_paths_still_find_default_install(self):
+        exe = self.root / "Image-Line" / "FL Studio 20" / "FL.exe"
+        exe.parent.mkdir(parents=True)
+        exe.touch()
+        other = self.root / "another.exe"
+        other.touch()
+        with mock.patch.dict(os.environ, {"ProgramW6432": "", "ProgramFiles": "", "ProgramFiles(x86)": str(self.root)}), \
+                mock.patch.object(live, "fl_windows", return_value=[]), \
+                mock.patch.object(live, "setting", return_value=str(self.root / "moved" / "FL64.exe")), \
+                mock.patch.object(live, "fl_registry_paths", return_value=[("FL Studio", str(other))]):
+            self.assertEqual(live.find_fl(), str(exe))
 
     def test_pattern_travels_with_its_channels(self):
         import struct

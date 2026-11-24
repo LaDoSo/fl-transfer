@@ -10,7 +10,7 @@ Copies sample channels, plugin channels and Patterns between FL Studio projects.
 
 The tool only reads the source project and never rewrites an existing `.flp`.
 
-This tree is the English edition of FL Transfer 1.2.0: the window, the messages, the user guide and the installer are in English. The program logic is the same as in the Chinese edition.
+This branch is the English edition of FL Transfer: the window, the messages, the user guide and the installer are in English. The program logic is the same as in the Chinese edition.
 
 - End-user documentation: [packaging/USER_GUIDE.txt](packaging/USER_GUIDE.txt) (shipped as `User Guide.txt`).
 - Developer documentation is still in Chinese: [README.zh.md](README.zh.md) (the original README) and [docs/FORMAT.md](docs/FORMAT.md).
@@ -53,4 +53,3 @@ Self-test of a build: `"release/FL Transfer/FL Transfer.exe" --selftest report.j
 [MIT](LICENSE). Third-party components shipped with the program are listed in [packaging/THIRD_PARTY.txt](packaging/THIRD_PARTY.txt).
 
 FL Studio is a product and trademark of Image-Line. This tool is not an Image-Line product and is not affiliated with Image-Line.
-

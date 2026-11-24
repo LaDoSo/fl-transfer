@@ -1,4 +1,4 @@
-FL Transfer 1.2.0 User Guide
+FL Transfer 1.2.1 User Guide
 ============================
 
 Moves the samples, instruments and Patterns of one FL Studio project into another project
@@ -18,13 +18,16 @@ Samples can be auditioned in the window before you decide which one to move.
 2. How to use it
 ----------------
 1. Start FL Transfer:
-   - Installer: run "FL-Transfer-Setup-1.2.0-en.exe", then open "FL Transfer" from the
+   - Installer: run "FL-Transfer-Setup-1.2.1-en.exe", then open "FL Transfer" from the
      Start menu or the desktop. It is installed for the current user only and needs no
      administrator rights.
    - Portable: unpack the whole archive anywhere and double-click "FL Transfer.exe" inside.
      (Keep the whole folder together; do not take the exe out on its own.)
 2. In FL Studio, open the "target project", the one you want to add things to. The target
    project must have been saved (it must have a file name).
+   FL Studio can be installed on any drive. When sending, the tool first looks for the FL
+   that is currently running. If a file picker appears, choose FL64.exe or FL.exe in the
+   FL Studio install folder; the tool remembers that location.
 3. Under "Source project" at the top of the FL Transfer window, choose the .flp to take
    things from (the drop-down lists the projects FL opened recently; you can also click
    "Browse…", or drop a .flp onto the window).

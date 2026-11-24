@@ -23,30 +23,85 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .export import _fl_dirs
+from .export import fl_registry_paths
 
 SENDABLE = (".fst", ".fsc")
 EXE_NAMES = ("FL64.exe", "FL.exe")
+FL_NOT_RUNNING = "FL Studio is not running. Open the target project in FL first, then send."
 
 
 class LiveError(Exception):
     pass
 
 
-def find_fl() -> str | None:
-    """Full path of the FL Studio executable, or None."""
-    install, _ = _fl_dirs()
-    folders = [install] if install else []
-    for env in ("ProgramFiles", "ProgramW6432"):
+def _process_image(pid: int) -> str | None:
+    """Read the executable path for a window's process, including paths on other drives."""
+    if sys.platform != "win32":
+        return None
+    import ctypes
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL("kernel32")
+    kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.QueryFullProcessImageNameW.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, wintypes.LPDWORD)
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return None
+    try:
+        path = ctypes.create_unicode_buffer(32768)
+        length = wintypes.DWORD(len(path))
+        if kernel.QueryFullProcessImageNameW(handle, 0, path, ctypes.byref(length)):
+            return path.value
+        return None
+    finally:
+        kernel.CloseHandle(handle)
+
+
+def is_fl_exe(path) -> bool:
+    return (isinstance(path, str) and os.path.isabs(path)
+            and os.path.basename(path).casefold() in ("fl64.exe", "fl.exe") and os.path.isfile(path))
+
+
+def _exe_in(folder: str) -> str | None:
+    for name in EXE_NAMES:
+        exe = os.path.join(folder, name)
+        if os.path.isfile(exe):
+            return exe
+    return None
+
+
+def find_fl(pid: int | None = None) -> str | None:
+    """Prefer the FL instance with the target project over any other installed version."""
+    if not pid:
+        windows = fl_windows()
+        pid = windows[0][1] if windows else None
+    if pid:
+        running = _process_image(pid)
+        if is_fl_exe(running):
+            return running
+    remembered = setting("fl_exe")
+    if is_fl_exe(remembered):
+        return remembered
+    for _, path in fl_registry_paths("FL Studio", "Install path"):
+        if is_fl_exe(path):
+            return path
+        exe = _exe_in(path)
+        if exe:
+            return exe
+    for env in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"):
         base = os.environ.get(env)
-        if base and os.path.isdir(os.path.join(base, "Image-Line")):
-            for name in sorted(os.listdir(os.path.join(base, "Image-Line")), reverse=True):
-                folders.append(os.path.join(base, "Image-Line", name))
-    for folder in folders:
-        for exe in EXE_NAMES:
-            path = os.path.join(folder, exe)
-            if os.path.isfile(path):
-                return path
+        if not base or not os.path.isabs(base):
+            continue
+        folder = os.path.join(base, "Image-Line")
+        try:
+            names = sorted(os.listdir(folder), reverse=True)
+        except OSError:
+            continue
+        for name in names:
+            exe = _exe_in(os.path.join(folder, name))
+            if exe:
+                return exe
     return None
 
 
@@ -85,11 +140,11 @@ def send(path, exe: str | None = None, require_running: bool = True) -> str:
         raise LiveError(f"Only .fst or .fsc files can be sent, not {path.suffix or path.name}")
     if not path.is_file():
         raise LiveError(f"File not found: {path}")
+    if require_running and fl_running() == 0:
+        raise LiveError(FL_NOT_RUNNING)
     exe = exe or find_fl()
     if not exe:
-        raise LiveError("Could not find where FL Studio is installed")
-    if require_running and fl_running() == 0:
-        raise LiveError("FL Studio is not running. Open the target project in FL first, then send.")
+        raise LiveError("Could not find the FL Studio program. Click “Send to FL” in the FL Transfer window and pick FL64.exe or FL.exe when asked.")
     reap()
     _helpers.append(subprocess.Popen([exe, str(path)], close_fds=True))
     return exe
@@ -418,7 +473,7 @@ def find_target(path=None, known=(), save: bool = False, notice=None) -> Target:
     name = None
     if path is None:
         if not wins:
-            raise LiveError("FL Studio is not running. Open the target project in FL first, then send.")
+            raise LiveError(FL_NOT_RUNNING)
         name = title_project(wins[0][2])
         if name is None:
             raise TargetUnknown("The project open in FL has never been saved, so its channel count cannot be read.\n"
