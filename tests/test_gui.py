@@ -1,12 +1,13 @@
 import sys
+import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from fltransfer import gui
+from fltransfer import gui, live
 from fltransfer.model import Clip
 
 
@@ -66,6 +67,44 @@ class GuiSearchTests(unittest.TestCase):
         self.assertEqual(list(app.boxes), ["p1", "c0", "c1", "c2"])
         self.assertEqual(app.sample_search_count.get(), "3 / 3")
         self.assertEqual(app.selected, ["p1"])
+
+
+class GuiInstallTests(unittest.TestCase):
+    def test_manual_choice_is_validated_and_reused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            exe = base / "Custom Install" / "FL.exe"
+            exe.parent.mkdir()
+            exe.touch()
+            wrong = base / "wrong.exe"
+            wrong.touch()
+            app = gui.App.__new__(gui.App)
+            app.root = None
+            with patch.object(live, "_settings_path", return_value=base / "settings.json"), \
+                    patch.object(live, "_memo_path", return_value=base / "memo.json"), \
+                    patch.object(live, "_process_image", return_value=None), \
+                    patch.object(live, "fl_registry_paths", return_value=[]), \
+                    patch.dict(gui.os.environ, {"ProgramFiles": "", "ProgramW6432": "", "ProgramFiles(x86)": ""}), \
+                    patch.object(gui.filedialog, "askopenfilename", side_effect=[str(wrong), str(exe)]) as choose:
+                with self.assertRaises(live.LiveError):
+                    app.fl_executable(42)
+                self.assertIsNone(live.setting("fl_exe"))
+                self.assertEqual(app.fl_executable(42), str(exe))
+                self.assertEqual(app.fl_executable(42), str(exe))
+                self.assertEqual(choose.call_count, 2)
+
+    def test_cancelling_exe_picker_precedes_saving_or_sending_pattern(self):
+        app = Mock()
+        app.chosen.return_value = ["p1"]
+        app.find_target.return_value.pid = 42
+        app.fl_executable.side_effect = lambda pid: gui.App.fl_executable(app, pid)
+        with patch.object(live, "fl_running", return_value=1), patch.object(live, "find_fl", return_value=None), \
+                patch.object(gui.filedialog, "askopenfilename", return_value=""), patch.object(live, "send") as send:
+            gui.App.send(app)
+        app.find_target.assert_called_once_with()
+        app.may_save.assert_not_called()
+        send.assert_not_called()
+        self.assertIn("已取消", app.say.call_args.args[0])
 
 
 if __name__ == "__main__":

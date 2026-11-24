@@ -245,15 +245,39 @@ def expand_fl_path(path: str, factory: str | None = None, user: str | None = Non
     return path
 
 
-def _fl_dirs() -> tuple[str | None, str | None]:
+def fl_registry_paths(*names: str):
+    """Yield Image-Line path values from per-user and machine-wide installations."""
     try:
         import winreg
     except ImportError:
-        return None, None
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\Image-Line\Shared\Paths") as k:
-            install = winreg.QueryValueEx(k, "Install path")[0]
-            shared = winreg.QueryValueEx(k, "Shared data")[0]
-        return install, os.path.join(shared, "FL Studio")
-    except OSError:
-        return None, None
+        return
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
+            try:
+                with winreg.OpenKey(hive, r"SOFTWARE\Image-Line\Shared\Paths", 0, winreg.KEY_READ | view) as key:
+                    for name in names:
+                        try:
+                            value, _ = winreg.QueryValueEx(key, name)
+                        except OSError:
+                            continue
+                        if isinstance(value, str):
+                            path = os.path.expandvars(value.strip().strip('"'))
+                            if os.path.isabs(path):
+                                yield name, os.path.normpath(path)
+            except OSError:
+                continue
+
+
+def _fl_dirs() -> tuple[str | None, str | None]:
+    install = user = None
+    for name, path in fl_registry_paths("Install path", "FL Studio", "Shared data"):
+        if name == "Shared data":
+            user = user or os.path.join(path, "FL Studio")
+        elif not install:
+            if os.path.isdir(path):
+                install = path
+            elif name == "FL Studio" and os.path.isfile(path):
+                install = os.path.dirname(path)
+        if install and user:
+            break
+    return install, user

@@ -1029,13 +1029,30 @@ class App:
             live.remember_path(path)
             return live.find_target(known=known, save=save, notice=notice)
 
+    def fl_executable(self, pid: int | None) -> str:
+        exe = live.find_fl(pid)
+        if exe:
+            return exe
+        path = filedialog.askopenfilename(parent=self.root, title="请选择 FL Studio 安装目录里的 FL64.exe 或 FL.exe",
+                                          filetypes=[("FL Studio 程序", live.EXE_NAMES)])
+        if not path:
+            raise live.LiveError("已取消选择 FL Studio 程序。")
+        if not live.is_fl_exe(path):
+            raise live.LiveError("请选择 FL Studio 安装目录里的 FL64.exe 或 FL.exe。")
+        path = os.path.normpath(path)
+        live.set_setting("fl_exe", path)
+        return path
+
     def send(self, event=None) -> None:
         if not self.source:
             return
         keys = self.chosen()
         if not keys:
             return
-        several = live.fl_running() > 1
+        running = live.fl_running()
+        if not running:
+            self.say(live.FL_NOT_RUNNING, "bad")
+            return
         with_pattern = any(k.startswith("p") for k in keys)
         done: list[str] = []
         target = None
@@ -1046,24 +1063,24 @@ class App:
         try:
             try:
                 target = self.find_target()
-                if with_pattern:
-                    # The count in the saved file is only right if nothing was added or deleted in
-                    # FL since.  That cannot be seen from here, so FL saves first, every time.
-                    if not self.may_save(target.name):
-                        self.flash.clear()
-                        self.draw_marks()
-                        self.say("已取消，没有保存，也没有发送。", "bad")
-                        return
-                    self.say(f"正在让 FL 保存 {target.name}…", "busy")
-                    self.root.update()
-                    target = self.find_target(save=True)
             except live.LiveError:
                 if with_pattern:                  # channels alone do not need the target's numbers
                     raise
+            exe = self.fl_executable(target.pid if target else None)
+            if with_pattern:
+                # FL saves first so the channel count matches the project that will receive the notes.
+                if not self.may_save(target.name):
+                    self.flash.clear()
+                    self.draw_marks()
+                    self.say("已取消，没有保存，也没有发送。", "bad")
+                    return
+                self.say(f"正在让 FL 保存 {target.name}…", "busy")
+                self.root.update()
+                target = self.find_target(save=True)
             if target:
                 first_channel, first_pattern = target.next_channel, target.next_pattern
             for path, channels, patterns in self.source.send_plan(keys, target):
-                live.send(path)
+                live.send(path, exe=exe)
                 if target:
                     target.sent(channels, patterns)
                 done.append(f"{patterns} 个 Pattern + {channels} 个音源" if patterns else path.stem)
@@ -1094,7 +1111,7 @@ class App:
             else:
                 text += (f"\n音符在新的 Pattern {numbers} 里。FL 没有自动切过去：请在 FL 顶部的 Pattern 选择器里"
                          f"选 #{first_pattern}，否则新音源那一行看起来是空的。" + where)
-        if several:
+        if running > 1:
             text += "\n现在开着多个 FL：由哪一个接收是 FL 决定的。"
         self.say(text, "ok")
 
