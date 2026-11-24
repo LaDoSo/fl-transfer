@@ -1,0 +1,40 @@
+FL Transfer 包含以下第三方组件
+================================
+
+1. Python 运行时（含 Tcl/Tk）
+   Python Software Foundation License；Tcl/Tk 使用 BSD 风格许可。
+   https://docs.python.org/3/license.html
+   https://www.tcl-lang.org/software/tcltk/license.html
+
+2. tkinterdnd2 0.7.0（内含 tkdnd 2.10 的 Windows 库）
+   https://github.com/Eliav2/tkinterdnd2
+   tkdnd: https://github.com/petasis/tkdnd （BSD 风格许可）
+   tkinterdnd2 的许可全文如下：
+
+MIT License
+
+Copyright (c) 2020 Philippe Gagné
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+3. 打包工具 PyInstaller 的启动器
+   GPL 2.0，附带允许分发任意许可程序的例外条款。
+   https://pyinstaller.org/en/stable/license.html
+
+FL Studio 是 Image-Line 的产品和商标。本工具不是 Image-Line 的产品，与其无关。

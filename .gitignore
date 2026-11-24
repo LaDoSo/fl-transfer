@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+# build output and local tools
+release/
+_tools/
+# local scratch, not part of the tool
+_work/
+saved-session/
+_backup_manifest.json
+_o.txt
+PLAN.md
+

@@ -1,0 +1,455 @@
+"""Hand a generated file to the FL Studio that is already running.
+
+Starting FL64.exe with a file path while FL is open does not start a second copy: the running
+instance takes the file.  Checked with FL 25.2.5:
+  .fst  -> a new channel appears in the open project, named after the file
+  .fst  -> a preset that also holds patterns adds those patterns too; their notes name the
+           channel by its position in the open project, so the tool has to know how many
+           channels that project has (see Target)
+  .fsc  -> the notes go into the current pattern on a new channel called "ScoreTrack"
+  .flp  -> replaces the open project (never sent from here)
+  .wav  -> nothing happens (so samples are sent as a channel preset instead)
+No mouse, keyboard or window focus is involved.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+from .export import _fl_dirs
+
+SENDABLE = (".fst", ".fsc")
+EXE_NAMES = ("FL64.exe", "FL.exe")
+
+
+class LiveError(Exception):
+    pass
+
+
+def find_fl() -> str | None:
+    """Full path of the FL Studio executable, or None."""
+    install, _ = _fl_dirs()
+    folders = [install] if install else []
+    for env in ("ProgramFiles", "ProgramW6432"):
+        base = os.environ.get(env)
+        if base and os.path.isdir(os.path.join(base, "Image-Line")):
+            for name in sorted(os.listdir(os.path.join(base, "Image-Line")), reverse=True):
+                folders.append(os.path.join(base, "Image-Line", name))
+    for folder in folders:
+        for exe in EXE_NAMES:
+            path = os.path.join(folder, exe)
+            if os.path.isfile(path):
+                return path
+    return None
+
+
+_helpers: list = []         # the short-lived FL64 processes that carried a file to the running FL
+
+
+def reap() -> None:
+    """Let go of helper processes that have finished, so they do not linger as dead FL64 entries."""
+    _helpers[:] = [p for p in _helpers if p.poll() is None]
+
+
+def fl_running() -> int:
+    """How many FL Studio processes are running (0 when unknown or not on Windows)."""
+    if sys.platform != "win32":
+        return 0
+    reap()
+    try:
+        shown = len({w[1] for w in fl_windows()})        # a helper or a finished process has no main window
+        if shown:
+            return shown
+    except OSError:
+        pass
+    try:
+        out = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                             errors="replace", creationflags=0x08000000).stdout
+    except OSError:
+        return 0
+    names = {n.lower() for n in EXE_NAMES}
+    return sum(1 for line in out.splitlines() if line.split(",")[0].strip('"').lower() in names)
+
+
+def send(path, exe: str | None = None, require_running: bool = True) -> str:
+    """Pass one .fst / .fsc file to the running FL Studio. Returns the executable used."""
+    path = Path(path)
+    if path.suffix.lower() not in SENDABLE:
+        raise LiveError(f"只能发送 .fst 或 .fsc，不能发送 {path.suffix or path.name}")
+    if not path.is_file():
+        raise LiveError(f"文件不存在：{path}")
+    exe = exe or find_fl()
+    if not exe:
+        raise LiveError("没有找到 FL Studio 的安装位置")
+    if require_running and fl_running() == 0:
+        raise LiveError("FL Studio 没有在运行。先在 FL 里打开目标工程，再发送。")
+    reap()
+    _helpers.append(subprocess.Popen([exe, str(path)], close_fds=True))
+    return exe
+
+
+# ---- the project open in FL -------------------------------------------------------------------
+MAIN_CLASS = "TFruityLoopsMainForm"
+
+
+def fl_windows() -> list[tuple[int, int, str]]:
+    """(window, process id, title) of every FL Studio main window."""
+    if sys.platform != "win32":
+        return []
+    import ctypes
+    from ctypes import wintypes
+    u = ctypes.windll.user32
+    found: list[tuple[int, int, str]] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def each(hwnd, _):
+        cls = ctypes.create_unicode_buffer(64)
+        u.GetClassNameW(hwnd, cls, 64)
+        if cls.value == MAIN_CLASS and u.IsWindowVisible(hwnd):
+            title = ctypes.create_unicode_buffer(512)
+            u.GetWindowTextW(hwnd, title, 512)
+            pid = wintypes.DWORD()
+            u.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            found.append((hwnd, pid.value, title.value))
+        return True
+
+    u.EnumWindows(each, 0)
+    return found
+
+
+def pointer_over_fl() -> bool:
+    """True when the mouse pointer is over a window of FL Studio."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    from ctypes import wintypes
+    u = ctypes.windll.user32
+    pt = wintypes.POINT()
+    u.GetCursorPos(ctypes.byref(pt))
+    u.WindowFromPoint.argtypes = [wintypes.POINT]
+    u.WindowFromPoint.restype = wintypes.HWND
+    hwnd = u.WindowFromPoint(pt)
+    if not hwnd:
+        return False
+    pid = wintypes.DWORD()
+    u.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value in {w[1] for w in fl_windows()}
+
+
+def title_project(title: str) -> str | None:
+    """'song.flp - FL Studio 2025' -> 'song.flp'; None for a project that was never saved."""
+    m = re.match(r"^(.+\.flp)\s+-\s+FL Studio", title, re.I)
+    return m.group(1) if m else None
+
+
+def _memo_path() -> Path:
+    return Path(tempfile.gettempdir()) / "FLTransfer" / "targets.json"
+
+
+def _memo() -> dict:
+    try:
+        data = json.loads(_memo_path().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _memo_save(data: dict) -> None:
+    try:
+        _memo_path().parent.mkdir(parents=True, exist_ok=True)
+        _memo_path().write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _settings_path() -> Path:
+    """Choices the user made (kept apart from the scratch folder, which cleaners may empty)."""
+    base = os.environ.get("APPDATA")
+    return (Path(base) if base else Path(tempfile.gettempdir())) / "FLTransfer" / "settings.json"
+
+
+def _settings() -> dict:
+    try:
+        data = json.loads(_settings_path().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def setting(name: str, default=None):
+    data = _settings()
+    if name in data:
+        return data[name]
+    return _memo().get("settings", {}).get(name, default)      # where versions before 1.0 kept them
+
+
+def set_setting(name: str, value) -> None:
+    data = _settings()
+    data[name] = value
+    try:
+        _settings_path().parent.mkdir(parents=True, exist_ok=True)
+        _settings_path().write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def post_key(hwnd: int, key: int, ctrl: bool = False) -> None:
+    """Post one key press to a window. Works while that window is in the background or minimised."""
+    import ctypes
+    u, k = ctypes.windll.user32, ctypes.windll.kernel32
+    tid, me = u.GetWindowThreadProcessId(hwnd, None), k.GetCurrentThreadId()
+    u.AttachThreadInput(me, tid, True)       # the target reads the Ctrl state from its own input queue
+    try:
+        state = (ctypes.c_ubyte * 256)()
+        u.GetKeyboardState(state)
+        saved = bytes(state)
+        if ctrl:
+            state[0x11] |= 0x80
+        else:
+            for mod in (0x10, 0x11, 0x12):   # a modifier the user happens to hold must not join in
+                state[mod] &= 0x7F
+        u.SetKeyboardState(state)
+        scan = u.MapVirtualKeyW(key, 0)
+        u.PostMessageW(hwnd, 0x0100, key, 1 | (scan << 16))
+        time.sleep(0.15)
+        u.PostMessageW(hwnd, 0x0101, key, 1 | (scan << 16) | (3 << 30))
+        time.sleep(0.15)
+        u.SetKeyboardState((ctypes.c_ubyte * 256)(*saved))
+    finally:
+        u.AttachThreadInput(me, tid, False)
+
+
+def press_save(hwnd: int) -> None:
+    """Post Ctrl+S to FL's main window."""
+    post_key(hwnd, ord("S"), ctrl=True)
+
+
+def pending() -> bool:
+    """True while FL is still taking a file that was sent (see wait_delivered)."""
+    return any(proc.poll() is None for proc in _helpers)
+
+
+def wait_delivered(timeout: float = 90.0) -> bool:
+    """Wait until FL has taken every file sent so far.
+
+    The helper process that carries a file stays alive until the running FL has finished
+    loading it (plugins included), so its exit marks the moment the new channels exist.
+    """
+    limit = time.time() + timeout
+    for proc in list(_helpers):
+        try:
+            proc.wait(max(0.1, limit - time.time()))
+        except subprocess.TimeoutExpired:
+            return False
+    reap()
+    return True
+
+
+def show_pattern(number: int) -> bool:
+    """Make the running FL display a pattern, with the keys a user would press on the numeric keypad.
+
+    1 to 9 pick that pattern directly; above that, 9 followed by "next pattern" presses.
+    """
+    wins = fl_windows()
+    if sys.platform != "win32" or not wins or number < 1 or number > 60:
+        return False
+    hwnd = wins[0][0]
+    if fl_blocked(hwnd):
+        return False
+    post_key(hwnd, 0x60 + min(number, 9))
+    for _ in range(number - 9):
+        post_key(hwnd, 0x6B)
+    return True
+
+
+def fl_blocked(hwnd: int) -> bool:
+    """True while FL's main window is disabled, which is how it looks with a message box or dialog up."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    u = ctypes.windll.user32
+    return bool(u.IsWindow(hwnd)) and not u.IsWindowEnabled(hwnd)
+
+
+def save_in_fl(hwnd: int, path: str, timeout: float = 45.0, notice=None, patience: float = 180.0) -> None:
+    """Have FL save the open project and wait until the file on disk is the new one.
+
+    If FL answers the save with a message box (it does when the project holds notes that point
+    at channels which do not exist), notice(text) is called once and the wait goes on for up to
+    patience seconds, so the save can finish after the user has dismissed the box.
+    """
+    from .flp import FLPError, Project
+    try:
+        before = os.path.getmtime(path)
+    except OSError as exc:
+        raise LiveError(f"读不了目标工程 {path}：{exc}")
+    name = os.path.basename(path)
+    if fl_blocked(hwnd):
+        raise LiveError("FL 里开着一个对话框，现在没法让它保存。没有发送。\n请先在 FL 里把对话框处理掉，再发一次。")
+    press_save(hwnd)
+    start = time.time()
+    limit = start + timeout
+    told = answered = False
+    while time.time() < limit:
+        time.sleep(0.3)
+        try:
+            if os.path.getmtime(path) == before:
+                blocked = fl_blocked(hwnd)
+                if blocked and not told and time.time() - start > 1.5:
+                    told = True
+                    limit = max(limit, start + patience)
+                    if notice:
+                        notice(f"FL 在保存 {name} 时弹出了提示框，正在等你到 FL 里回答它…\n"
+                               "如果是 Invalid data（有无效音符，保存时会删掉），那是之前没对上通道的音符，点“是”即可。")
+                elif told and not blocked and not answered:
+                    answered = True                      # box gone: the save follows at once, or not at all
+                    limit = min(limit, time.time() + 15)
+                continue
+            size = os.path.getsize(path)
+            time.sleep(0.4)                              # FL may still be writing
+            if os.path.getsize(path) != size:
+                continue
+            if not Project.load(path).sanity():
+                return
+        except (OSError, FLPError):
+            continue
+    if answered:
+        raise LiveError(f"FL 的提示框关掉了，但 {name} 没有保存（是不是点了“否”？）。没有发送。")
+    if told:
+        raise LiveError(f"FL 弹出的提示框一直没有处理，{name} 没有保存下来。没有发送。\n到 FL 里处理掉提示框，再发一次。")
+    raise LiveError(f"FL 没有把 {name} 保存下来（FL 里可能开着对话框，或者正忙）。没有发送。\n"
+                    "请在 FL 里手动 Ctrl+S 之后再发。")
+
+
+def remember_path(path) -> None:
+    """Note where a project file lives, so its name in FL's title bar can be resolved later."""
+    data = _memo()
+    data.setdefault("paths", {})[os.path.basename(str(path)).lower()] = os.path.abspath(str(path))
+    _memo_save(data)
+
+
+class TargetUnknown(LiveError):
+    """The project open in FL could not be read from disk; .name is its file name, if it has one."""
+
+    def __init__(self, message: str, name: str | None = None):
+        super().__init__(message)
+        self.name = name
+
+
+@dataclass
+class Target:
+    """The project open in FL, as far as it can be known from outside.
+
+    FL cannot be asked how many channels the open project has.  The count is taken from the
+    project file as last saved, plus whatever this tool has added since that save.
+    """
+    name: str
+    path: str
+    pid: int
+    mtime: float
+    ppq: int
+    channels: int               # in the saved file
+    last_pattern: int           # highest pattern number in the saved file
+    added_channels: int = 0     # sent by this tool since that save
+    added_patterns: int = 0
+    unsure: bool = False        # something reached FL that this tool could not count (see mark_unsure)
+
+    @property
+    def next_channel(self) -> int:
+        return self.channels + self.added_channels
+
+    @property
+    def next_pattern(self) -> int:
+        return self.last_pattern + self.added_patterns + 1
+
+    def sent(self, channels: int, patterns: int = 0) -> None:
+        """Record what was just handed to FL, so the next file is numbered after it."""
+        self.added_channels += channels
+        self.added_patterns += patterns
+        data = _memo()
+        data.setdefault("sent", {})[self.path] = {"mtime": self.mtime, "pid": self.pid,
+                                                  "channels": self.added_channels, "patterns": self.added_patterns}
+        _memo_save(data)
+
+
+def mark_unsure() -> None:
+    """Note that the channel count kept for the running FL can no longer be trusted.
+
+    Called when a card was dropped into FL as a file (FL decides whether that makes a new
+    channel) or a channel was sent while the open project could not be identified.  The mark
+    goes away when the project is saved, by the user or through find_target(save=True).
+    """
+    wins = fl_windows()
+    if not wins:
+        return
+    mtime = None
+    name = title_project(wins[0][2])
+    path = _memo().get("paths", {}).get(name.lower()) if name else None
+    if path:
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            pass
+    data = _memo()
+    data["unsure"] = {"pid": wins[0][1], "mtime": mtime}
+    _memo_save(data)
+
+
+def find_target(path=None, known=(), save: bool = False, notice=None) -> Target:
+    """Work out which project the running FL has open and read its saved file.
+
+    path names the file directly.  Otherwise the name in FL's title bar is looked up among
+    files remembered earlier, the given known paths and FL's recent projects.
+    With save, FL is first told to save the project, so the file read here is exactly what FL
+    has open and the channel count cannot be stale.
+    """
+    from . import flp
+    from .flp import FLPError, Project
+    wins = fl_windows()
+    pid = wins[0][1] if wins else 0
+    name = None
+    if path is None:
+        if not wins:
+            raise LiveError("FL Studio 没有在运行。先在 FL 里打开目标工程，再发送。")
+        name = title_project(wins[0][2])
+        if name is None:
+            raise TargetUnknown("FL 里开着的工程还没有保存过，读不到它有多少个通道。\n"
+                                "带音源发送 Pattern 需要这个数：请先在 FL 里 Ctrl+S 存一次，再发送。")
+        from .model import recent_projects
+        remembered = _memo().get("paths", {}).get(name.lower())
+        for cand in ([remembered] if remembered else []) + [str(k) for k in known] + recent_projects(60):
+            if os.path.basename(cand).lower() == name.lower() and os.path.isfile(cand):
+                path = cand
+                break
+        if path is None:
+            raise TargetUnknown(f"FL 里开着的是 {name}，但不知道这个文件放在哪里。", name)
+    path = os.path.abspath(str(path))
+    if save:
+        if not wins or title_project(wins[0][2]) is None:
+            raise LiveError("FL 没有开着已保存过的工程，没法让它保存。")
+        save_in_fl(wins[0][0], path, notice=notice)
+        data = _memo()
+        if data.pop("unsure", None) is not None:
+            _memo_save(data)
+    try:
+        project = Project.load(path)
+        mtime = os.path.getmtime(path)
+    except (OSError, FLPError) as exc:
+        raise LiveError(f"读不了目标工程 {path}：{exc}")
+    numbers = [e.value for e in project.events if e.id == flp.PAT_NEW]
+    target = Target(name or os.path.basename(path), path, pid, mtime, project.ppq,
+                    len(project.channels()), max(numbers, default=0))
+    remember_path(path)
+    mark = _memo().get("unsure")
+    target.unsure = bool(mark and mark.get("pid") == pid and mark.get("mtime") in (None, mtime))
+    old = _memo().get("sent", {}).get(path)
+    if old and old.get("mtime") == mtime and old.get("pid") == pid:     # same save, same FL session
+        target.added_channels, target.added_patterns = int(old.get("channels", 0)), int(old.get("patterns", 0))
+    return target
