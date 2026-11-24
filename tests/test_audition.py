@@ -233,17 +233,17 @@ class PlayerTest(unittest.TestCase):
         self.assertEqual(p.state, "idle")
 
         def no_device(pcm):
-            raise AuditionError("打不开声音输出设备：x")
+            raise AuditionError("Cannot open the sound output device: x")
 
         p = self.player(lambda path: Pcm(1000, 1, bytes(4000), 2.0, 2.0), open_wave=no_device)
         p.start("a.wav")
         self.wait(p, "error")
-        self.assertIn("打不开声音输出设备", p.error)
+        self.assertIn("Cannot open the sound output device", p.error)
 
         p = self.player(lambda path: Pcm(1000, 1, b"", 0.0, 0.0))
         p.start("a.wav")
         self.wait(p, "error")
-        self.assertIn("空", p.error)
+        self.assertIn("empty", p.error)
 
     def test_from_a_point_and_jumping_reads_the_file_once(self):
         path = Path(tempfile.mkdtemp()) / "a.wav"

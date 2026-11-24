@@ -1,15 +1,15 @@
-FL Transfer 包含以下第三方组件
-================================
+FL Transfer includes the following third-party components
+=========================================================
 
-1. Python 运行时（含 Tcl/Tk）
-   Python Software Foundation License；Tcl/Tk 使用 BSD 风格许可。
+1. Python runtime (including Tcl/Tk)
+   Python Software Foundation License; Tcl/Tk is under a BSD-style license.
    https://docs.python.org/3/license.html
    https://www.tcl-lang.org/software/tcltk/license.html
 
-2. tkinterdnd2 0.7.0（内含 tkdnd 2.10 的 Windows 库）
+2. tkinterdnd2 0.7.0 (contains the Windows libraries of tkdnd 2.10)
    https://github.com/Eliav2/tkinterdnd2
-   tkdnd: https://github.com/petasis/tkdnd （BSD 风格许可）
-   tkinterdnd2 的许可全文如下：
+   tkdnd: https://github.com/petasis/tkdnd (BSD-style license)
+   The full license text of tkinterdnd2 follows:
 
 MIT License
 
@@ -33,8 +33,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-3. 打包工具 PyInstaller 的启动器
-   GPL 2.0，附带允许分发任意许可程序的例外条款。
+3. The bootloader of the packaging tool PyInstaller
+   GPL 2.0, with an exception that allows distributing programs under any license.
    https://pyinstaller.org/en/stable/license.html
 
-FL Studio 是 Image-Line 的产品和商标。本工具不是 Image-Line 的产品，与其无关。
+FL Studio is a product and trademark of Image-Line. This tool is not an Image-Line product and is not affiliated with Image-Line.

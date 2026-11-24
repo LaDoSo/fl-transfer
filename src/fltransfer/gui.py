@@ -49,7 +49,7 @@ CARD_H = {"pattern": 84, "audio": 84, "plugin": 46, "other": 46}
 CARD_MIN_W = 250
 GAP = 10
 PAD = 14
-SECTIONS = (("pattern", "PATTERN"), ("audio", "采样"), ("plugin", "乐器通道"), ("other", "不支持的通道"))
+SECTIONS = (("pattern", "PATTERNS"), ("audio", "SAMPLES"), ("plugin", "INSTRUMENT CHANNELS"), ("other", "UNSUPPORTED CHANNELS"))
 WAVE_COLUMNS = 420
 MAX_NOTES_DRAWN = 1500
 
@@ -87,9 +87,14 @@ def sample_matches(clip: Clip, query: str) -> bool:
     return any(query in name.casefold() for name in names if name)
 
 
+def plural(n: int, word: str) -> str:
+    """"1 instrument", "7 instruments"."""
+    return f"{n} {word}" + ("" if n == 1 else "s")
+
+
 def seconds_text(seconds: float) -> str:
     if seconds < 10:
-        return f"{seconds:.1f} 秒"
+        return f"{seconds:.1f} s"
     return f"{int(seconds) // 60}:{int(seconds) % 60:02d}"
 
 
@@ -173,28 +178,30 @@ class App:
         top.pack(fill="x")
         row = tk.Frame(top, background=PANEL)
         row.pack(fill="x", padx=PAD, pady=(12, 4))
-        tk.Label(row, text="来源工程", background=PANEL, foreground=DIM, font=self.f_ui).pack(side="left")
+        tk.Label(row, text="Source project", background=PANEL, foreground=DIM, font=self.f_ui, width=13,
+                 anchor="w").pack(side="left")
         self.path_var = tk.StringVar()
         self.combo = ttk.Combobox(row, textvariable=self.path_var, values=recent_projects(), font=self.f_ui,
                                   style="Dark.TCombobox")
         self.combo.pack(side="left", fill="x", expand=True, padx=10, ipady=3)
         self.combo.bind("<<ComboboxSelected>>", lambda e: self.open(self.path_var.get()))
         self.combo.bind("<Return>", lambda e: self.open(self.path_var.get()))
-        FlatButton(row, "浏览…", self.browse, font=self.f_ui).pack(side="left")
-        FlatButton(row, "刷新", self.reload, font=self.f_ui).pack(side="left", padx=(6, 0))
+        FlatButton(row, "Browse…", self.browse, font=self.f_ui).pack(side="left")
+        FlatButton(row, "Refresh", self.reload, font=self.f_ui).pack(side="left", padx=(6, 0))
         search_row = tk.Frame(top, background=PANEL)
         search_row.pack(fill="x", padx=PAD, pady=(4, 6))
-        tk.Label(search_row, text="采样搜索", background=PANEL, foreground=DIM, font=self.f_ui).pack(side="left")
+        tk.Label(search_row, text="Search samples", background=PANEL, foreground=DIM, font=self.f_ui, width=13,
+                 anchor="w").pack(side="left")
         self.sample_search_var = tk.StringVar()
         self.sample_search_count = tk.StringVar(value="0 / 0")
         self.sample_search = ttk.Entry(search_row, textvariable=self.sample_search_var, font=self.f_ui, style="Dark.TEntry")
         self.sample_search.pack(side="left", fill="x", expand=True, padx=10, ipady=3)
         self.sample_search.bind("<Escape>", self.clear_sample_search)
-        FlatButton(search_row, "清除", self.clear_sample_search, font=self.f_ui).pack(side="left")
+        FlatButton(search_row, "Clear", self.clear_sample_search, font=self.f_ui).pack(side="left")
         tk.Label(search_row, textvariable=self.sample_search_count, background=PANEL, foreground=DIM,
                  font=self.f_small, width=10, anchor="e").pack(side="right", padx=(10, 0))
         self.sample_search_var.trace_add("write", self.search_changed)
-        self.status = tk.StringVar(value="选一个保存过的 .flp 工程，或者把它拖进这个窗口")
+        self.status = tk.StringVar(value="Pick a saved .flp project, or drop one onto this window")
         tk.Label(top, textvariable=self.status, background=PANEL, foreground=DIM, font=self.f_small,
                  anchor="w").pack(fill="x", padx=PAD, pady=(0, 10))
         tk.Frame(root, background="#11161a", height=1).pack(fill="x")
@@ -205,19 +212,19 @@ class App:
         tk.Frame(root, background="#11161a", height=1).pack(side="bottom", fill="x")
         bar = tk.Frame(bottom, background=PANEL)
         bar.pack(fill="x", padx=PAD, pady=(12, 6))
-        FlatButton(bar, "发送到 FL", self.send, primary=True, font=self.f_bold).pack(side="left")
-        FlatButton(bar, "合并到工程文件…", self.merge, font=self.f_ui).pack(side="left", padx=(8, 0))
-        FlatButton(bar, "定位文件", self.reveal, font=self.f_ui).pack(side="left", padx=(8, 0))
+        FlatButton(bar, "Send to FL", self.send, primary=True, font=self.f_bold).pack(side="left")
+        FlatButton(bar, "Merge into file…", self.merge, font=self.f_ui).pack(side="left", padx=(8, 0))
+        FlatButton(bar, "Show file", self.reveal, font=self.f_ui).pack(side="left", padx=(8, 0))
         self.topmost = tk.BooleanVar(value=True)
-        FlatButton(bar, "置顶", self.apply_topmost, toggle=self.topmost, font=self.f_ui).pack(side="right")
+        FlatButton(bar, "On top", self.apply_topmost, toggle=self.topmost, font=self.f_ui).pack(side="right")
         self.save_first = tk.BooleanVar(value=bool(live.setting("save_first", False)))
-        FlatButton(bar, "发 Pattern 前自动保存 FL 工程", lambda: live.set_setting("save_first", bool(self.save_first.get())),
+        FlatButton(bar, "Auto-save FL before Patterns", lambda: live.set_setting("save_first", bool(self.save_first.get())),
                    toggle=self.save_first, font=self.f_ui).pack(side="right", padx=(0, 8))
         self.raw_audio = tk.BooleanVar(value=False)
-        FlatButton(bar, "采样拖出为音频文件", lambda: None, toggle=self.raw_audio,
+        FlatButton(bar, "Drag samples as audio", lambda: None, toggle=self.raw_audio,
                    font=self.f_ui).pack(side="right", padx=(0, 8))
         self.log = tk.Label(bottom, text="", background=PANEL, foreground=DIM, font=self.f_small, anchor="nw",
-                            justify="left", height=3)
+                            justify="left", height=4)
         self.log.pack(fill="x", padx=PAD, pady=(0, 10))
         self.log.bind("<Configure>", lambda e: self.log.configure(wraplength=max(200, e.width - 4)))
 
@@ -249,9 +256,11 @@ class App:
             self.canvas.dnd_bind("<<DragEndCmd>>", self.drag_end)
             root.drop_target_register(DND_FILES)
             root.dnd_bind("<<Drop>>", self.dropped)
-        self.say("选中卡片后点“发送到 FL”，它会出现在 FL 当前打开的工程里。双击卡片也可以发送（采样双击标题栏），"
-                 "Ctrl / Shift 点击可多选。也可以把卡片直接拖进 FL。Pattern 会带着它的音源一起过去。\n"
-                 "试听采样：点波形上的任意位置，从那里开始播放；点卡片左上角的播放钮或按空格从头播放，再按一次停止。")
+        self.say("Select cards and click “Send to FL” to add them to the project open in FL; double-clicking a card sends "
+                 "it too (for a sample, double-click its title bar). Ctrl / Shift-click selects several. Cards can also be "
+                 "dragged straight into FL. A Pattern brings its instruments along.\n"
+                 "Audition a sample: click its waveform to play from there; the play button at the card's top left, or Space, "
+                 "plays from the start, and once more stops.")
         self.apply_topmost()
         if initial:
             self.open(initial)
@@ -308,7 +317,7 @@ class App:
         self.root.attributes("-topmost", bool(self.topmost.get()))
 
     def browse(self) -> None:
-        path = filedialog.askopenfilename(title="选择来源工程", filetypes=[("FL Studio 工程", "*.flp")])
+        path = filedialog.askopenfilename(title="Choose the source project", filetypes=[("FL Studio project", "*.flp")])
         if path:
             self.open(path)
 
@@ -317,7 +326,7 @@ class App:
         try:
             self.source = Source(path)
         except (FLPError, OSError) as exc:
-            self.say(f"打不开 {path}\n{exc}")
+            self.say(f"Cannot open {path}\n{exc}")
             return
         self.path_var.set(path)
         self.fill()
@@ -329,7 +338,7 @@ class App:
     def watch(self) -> None:
         if self.source and self.source.changed_on_disk():
             self.reload()
-            self.say("来源工程已重新保存，内容已刷新。")
+            self.say("The source project was saved again; the cards have been refreshed.")
         live.reap()
         self.root.after(1000, self.watch)
 
@@ -377,7 +386,7 @@ class App:
             if self.selected:
                 self.describe()
             else:
-                self.say("当前没有选中卡片。")
+                self.say("No card is selected.")
         if self.playing and (self.playing not in self.clips or self.clips[self.playing].sample != self.player.path):
             self.stop_play()
         self.redraw(scroll_to_samples=bool(query))
@@ -407,10 +416,10 @@ class App:
         self.boxes = {}
         width = max(cv.winfo_width(), 2 * PAD + CARD_MIN_W)
         if not self.project_clips:
-            cv.create_text(width // 2, max(cv.winfo_height() // 2 - 12, 60), text="把 .flp 工程拖到这里",
+            cv.create_text(width // 2, max(cv.winfo_height() // 2 - 12, 60), text="Drop a .flp project here",
                            fill=DIM, font=self.f_big)
             cv.create_text(width // 2, max(cv.winfo_height() // 2 + 16, 88),
-                           text="或者在上面选择最近打开的工程", fill="#56626a", font=self.f_ui)
+                           text="or pick a recently opened project above", fill="#56626a", font=self.f_ui)
             cv.configure(scrollregion=(0, 0, width, cv.winfo_height()))
             return
         inner = width - 2 * PAD
@@ -432,7 +441,7 @@ class App:
             cv.create_line(PAD + tw + self.f_small.measure(count) + 18, y + 8, width - PAD, y + 8, fill="#262f35")
             y += 24
             if not group:
-                cv.create_text(PAD, y + 7, text="没有找到匹配的采样", anchor="w", fill=DIM, font=self.f_ui)
+                cv.create_text(PAD, y + 7, text="No matching samples", anchor="w", fill=DIM, font=self.f_ui)
                 y += 32
                 continue
             h = CARD_H[kind]
@@ -546,12 +555,12 @@ class App:
         if not isinstance(wave, peaks.Wave) or not wave.columns:
             cv.create_line(x0, mid, x1, mid, fill=quiet)
             if not clip.sample:
-                note = "找不到采样文件 · " + clip.sample_name
+                note = "Sample file not found · " + clip.sample_name
             elif wave == "wait":
-                note = "正在读取波形…"
+                note = "Reading waveform…"
             else:
-                ext = os.path.splitext(clip.sample)[1].lstrip(".").lower() or "音频"
-                note = f"{ext} 文件 · 没有波形预览"
+                ext = os.path.splitext(clip.sample)[1].lstrip(".").lower() or "audio"
+                note = f"{ext} file · no waveform preview"
             label = self.fit(note, self.f_small, w - 16)
             tw = self.f_small.measure(label)
             body = cv.itemcget(cv.find_closest(x0 + 2, y1 - 2)[0], "fill") or BODY
@@ -660,7 +669,7 @@ class App:
         """Start the card's sample, or stop it when it is the one being heard."""
         if key == self.playing:
             self.stop_play()
-            self.say("试听已停止。")
+            self.say("Audition stopped.")
             return
         self.start_play(key)
 
@@ -669,9 +678,9 @@ class App:
         clip = self.clips[key]
         if not self.can_play(clip):
             if clip.kind == "audio":
-                self.say(f"{clip.name}：找不到采样文件，没法试听。", "bad")
+                self.say(f"{clip.name}: the sample file is missing, so it cannot be auditioned.", "bad")
             else:
-                self.say("只有采样可以试听。")
+                self.say("Only samples can be auditioned.")
             return
         told = self.play_told and key == self.playing       # a jump inside the same sample: say nothing new
         self.stop_play()
@@ -700,14 +709,15 @@ class App:
         if state == "error":
             text = self.player.error
             self.stop_play()
-            self.say(f"{clip.name}：{text}", "bad")
+            self.say(f"{clip.name}: {text}", "bad")
             return
         if state == "playing":
             if not self.play_told:
                 self.play_told = True
-                more = "这个采样很长，从点的位置起最多连续播放两分钟。" if self.player.cut else ""
-                self.say(f"正在试听：{clip.name}（{os.path.basename(clip.sample)}）。点波形上别的位置可以跳到那里，"
-                         f"点播放钮或按空格停止。\n听到的是原始文件，不带通道里的音高、裁剪、反向这些设置。{more}",
+                more = " This sample is long: at most two minutes play from where you clicked." if self.player.cut else ""
+                self.say(f"Auditioning: {clip.name} ({os.path.basename(clip.sample)}). Click elsewhere on the waveform to jump there; "
+                         f"the play button or Space stops.\nYou hear the original file, without the channel's pitch, trim, "
+                         f"reverse and similar settings.{more}",
                          "busy")
             if self.playing in self.boxes and self.canvas.find_withtag("head"):
                 x0, y0, x1, y1 = self.boxes[self.playing]
@@ -720,13 +730,13 @@ class App:
             return None
         if self.playing:
             self.stop_play()
-            self.say("试听已停止。")
+            self.say("Audition stopped.")
         elif len(self.selected) == 1:
             self.toggle_play(self.selected[0])
         elif self.hover in self.boxes:
             self.toggle_play(self.hover)
         else:
-            self.say("先点选一个采样，再按空格试听。")
+            self.say("Select a sample first, then press Space to audition it.")
         return "break"
 
     def flash_cards(self, keys: list[str], color: str, label: str, ms: int = 1400) -> None:
@@ -797,7 +807,7 @@ class App:
             return
         clip = self.clips[key]
         if not clip.enabled:
-            self.say(f"{clip.name}：{clip.why_not}")
+            self.say(f"{clip.name}: {clip.why_not}")
             return
         if event.state & 0x0001 and self.selected:                       # Shift: range
             keys = list(self.boxes)
@@ -816,17 +826,17 @@ class App:
         if len(self.selected) == 1:
             clip = self.clips[self.selected[0]]
             if clip.kind == "pattern":
-                names = "、".join(n for _, n in clip.channels)
-                self.say(f"{clip.name}：{len(clip.notes)} 个音符，用到的通道：{names}。\n"
-                         "发送后音符进入 FL 当前选中的 Pattern，落在新通道 ScoreTrack 上；"
-                         "要让音符留在原乐器上，用“合并到工程文件”。")
+                names = ", ".join(n for _, n in clip.channels)
+                self.say(f"{clip.name}: {plural(len(clip.notes), 'note')}, channels used: {names}.\n"
+                         "Sent to FL, it becomes a new Pattern together with every instrument it uses; "
+                         "the notes stay on those new channels.")
             elif clip.kind == "audio":
-                where = clip.sample or f"找不到文件（工程里记的是 {clip.sample_name}）"
-                self.say(f"{clip.name}：{clip.detail}\n{where}")
+                where = clip.sample or f"File not found (the project refers to {clip.sample_name})"
+                self.say(f"{clip.name}: {clip.detail}\n{where}")
             else:
-                self.say(f"{clip.name}：{clip.detail}")
+                self.say(f"{clip.name}: {clip.detail}")
         elif self.selected:
-            self.say(f"已选中 {len(self.selected)} 项")
+            self.say(f"{len(self.selected)} items selected")
 
     def double_click(self, event) -> None:
         if self.play_at(event) or (self.seek_at(event) and not event.state & 0x0005):
@@ -841,7 +851,7 @@ class App:
     def chosen(self) -> list[str]:
         keys = [k for k in self.boxes if k in self.selected]             # in display order
         if not keys:
-            self.say("先点选要传的 Pattern 或采样（Ctrl / Shift 点击可多选）。")
+            self.say("Select the Patterns or samples to transfer first (Ctrl / Shift-click selects several).")
         return keys
 
     def mode(self) -> str:
@@ -869,20 +879,20 @@ class App:
         except (FLPError, OSError) as exc:
             self.say(str(exc))
             return ("refuse_drop",)
-        self.say("正在拖出：" + "、".join(os.path.basename(f) for f in files) + "。在 FL 里松开。", "busy")
+        self.say("Dragging out: " + ", ".join(os.path.basename(f) for f in files) + ". Release it inside FL.", "busy")
         self.root.update_idletasks()
         return (COPY, DND_FILES, tuple(files))
 
     # A pattern cannot leave as a file of its own: FL would put the notes on whatever channel the
     # file lands on, without the instrument.  So a dragged pattern is carried by this window and,
-    # when the button is let go over FL, sent the same way as the 发送到 FL button.
+    # when the button is let go over FL, sent the same way as the Send to FL button.
     def carry_start(self, keys: list[str]) -> None:
         if self.carry:
             return
         self.carry = keys
         self.canvas.configure(cursor="fleur")
-        names = "、".join(self.clips[k].name for k in keys[:3]) + (" 等" if len(keys) > 3 else "")
-        self.say(f"正在拖：{names}。拖到 FL 窗口上松开，Pattern 会连同音源一起加进去。", "busy")
+        names = ", ".join(self.clips[k].name for k in keys[:3]) + (" and more" if len(keys) > 3 else "")
+        self.say(f"Dragging: {names}. Release over the FL window and the Pattern is added together with its instruments.", "busy")
         self.ghost_show(keys)
 
     def carry_move(self, event) -> None:
@@ -912,7 +922,7 @@ class App:
         self.canvas.configure(cursor="")
         self.ghost_hide()
         if not live.pointer_over_fl():
-            self.say("没有松在 FL 窗口上，什么都没发送。", "bad")
+            self.say("Not released over an FL window: nothing was sent.", "bad")
             return
         self.select(keys)
         self.send()
@@ -933,10 +943,11 @@ class App:
         inner = tk.Frame(frame, background=PANEL, padx=12, pady=7)
         inner.pack()
         first = self.clips[keys[0]]
-        title = first.name + (f"  等 {len(keys)} 个" if len(keys) > 1 else "")
+        title = first.name + (f"  + {len(keys) - 1} more" if len(keys) > 1 else "")
         pats = [k for k in keys if k.startswith("p")]
         chans = {i for k in pats for i, _ in self.clips[k].channels}
-        sub = f"{len(pats)} 个 Pattern + {len(chans)} 个音源" if pats else f"{len(keys)} 个通道"
+        sub = (f"{plural(len(pats), 'Pattern')} + {plural(len(chans), 'instrument')}" if pats
+               else plural(len(keys), "channel"))
         g.title_label = tk.Label(inner, text="♪  " + self.fit(title, self.f_bold, 260), background=PANEL,
                                  foreground=TEXT, font=self.f_bold, anchor="w")
         g.title_label.pack(fill="x")
@@ -960,7 +971,7 @@ class App:
             w.configure(background=fill)
         g.title_label.configure(foreground="#ffffff" if over else TEXT)
         g.sub_label.configure(foreground=TEXT if over else DIM)
-        g.hint_label.configure(text="松开：加进这个 FL 工程" if over else "拖到 FL 窗口上再松开",
+        g.hint_label.configure(text="Release: add to this FL project" if over else "Drag onto the FL window, then release",
                                foreground=ACCENT if over else DIM)
 
     def ghost_move(self, x: int, y: int) -> None:
@@ -980,7 +991,7 @@ class App:
         self.draw_marks()
         if live.pointer_over_fl():
             live.mark_unsure()
-            self.say("已拖进 FL。", "ok")
+            self.say("Dragged into FL.", "ok")
 
     def dropped(self, event):
         for path in self.root.tk.splitlist(event.data):
@@ -993,13 +1004,14 @@ class App:
         if self.save_first.get():
             return True
         answer = messagebox.askyesnocancel(
-            f"先让 FL 保存 {name}？", parent=self.root, message=(
-                "Pattern 的音符要写明落在目标工程的第几个通道上。FL 不告诉别的程序它现在有几个通道，"
-                "只能让它保存一次，再从文件里读。不这样做，音符就会对不上音源，看起来就是“没有 MIDI”。\n\n"
-                f"是：在 FL 里按一次 Ctrl+S 保存 {name}，然后发送；以后每次都这样，不再询问。\n"
-                "否：只这一次保存并发送，下次再问。\n"
-                "取消：不保存，也不发送。\n\n"
-                "FL 每次保存都会照常在工程的 Backup 文件夹里留一份 overwritten 备份。"))
+            f"Let FL save {name} first?", parent=self.root, message=(
+                "A Pattern's notes have to say which channel of the target project they belong to. FL does not tell "
+                "other programs how many channels it has, so the only way is to let it save once and read the file. "
+                "Without that the notes miss their instruments, which looks like “no MIDI”.\n\n"
+                f"Yes: press Ctrl+S once in FL to save {name}, then send; do the same every time from now on, without asking.\n"
+                "No: save and send just this once, and ask again next time.\n"
+                "Cancel: neither save nor send.\n\n"
+                "As always, each save in FL leaves an “overwritten” backup in the project's Backup folder."))
         if answer:
             self.save_first.set(True)
             live.set_setting("save_first", True)
@@ -1020,12 +1032,12 @@ class App:
             if not exc.name:
                 raise
             path = filedialog.askopenfilename(
-                parent=self.root, title=f"FL 里开着的 {exc.name} 放在哪里？（只读取通道数，不会改它）",
-                initialfile=exc.name, filetypes=[("FL Studio 工程", "*.flp")])
+                parent=self.root, title=f"Where is {exc.name}, the project open in FL? (Only its channel count is read; it is not changed)",
+                initialfile=exc.name, filetypes=[("FL Studio project", "*.flp")])
             if not path:
                 raise
             if os.path.basename(path).lower() != exc.name.lower():
-                raise live.LiveError(f"选的文件不是 {exc.name}，没有发送。")
+                raise live.LiveError(f"The chosen file is not {exc.name}; nothing was sent.")
             live.remember_path(path)
             return live.find_target(known=known, save=save, notice=notice)
 
@@ -1039,8 +1051,8 @@ class App:
         with_pattern = any(k.startswith("p") for k in keys)
         done: list[str] = []
         target = None
-        self.flash_cards(keys, ACCENT, "发送中…", 60000)
-        self.say("正在发送…", "busy")
+        self.flash_cards(keys, ACCENT, "Sending…", 60000)
+        self.say("Sending…", "busy")
         self.root.update()
         first_channel = first_pattern = 0
         try:
@@ -1052,9 +1064,9 @@ class App:
                     if not self.may_save(target.name):
                         self.flash.clear()
                         self.draw_marks()
-                        self.say("已取消，没有保存，也没有发送。", "bad")
+                        self.say("Cancelled: nothing was saved or sent.", "bad")
                         return
-                    self.say(f"正在让 FL 保存 {target.name}…", "busy")
+                    self.say(f"Asking FL to save {target.name}…", "busy")
                     self.root.update()
                     target = self.find_target(save=True)
             except live.LiveError:
@@ -1066,36 +1078,37 @@ class App:
                 live.send(path)
                 if target:
                     target.sent(channels, patterns)
-                done.append(f"{patterns} 个 Pattern + {channels} 个音源" if patterns else path.stem)
+                done.append(f"{plural(patterns, 'Pattern')} + {plural(channels, 'instrument')}" if patterns else path.stem)
                 self.root.update()
                 self.root.after(700)              # FL takes the files one at a time
         except (FLPError, OSError, live.LiveError) as exc:
             self.flash.clear()
-            self.flash_cards(keys, BAD, "没有发送")
-            self.say("\n".join(([f"已发送：{'、'.join(done)}"] if done else []) + [f"没有发送：{exc}"]), "bad")
+            self.flash_cards(keys, BAD, "Not sent")
+            self.say("\n".join(([f"Sent: {', '.join(done)}"] if done else []) + [f"Not sent: {exc}"]), "bad")
             return
         shown = False
         if with_pattern:
             # FL stays on whatever pattern it was showing, where the new instrument's row is empty.
             # Once it has finished loading, switch it to the new pattern so the notes are in view.
-            self.say("FL 正在加载音源…", "busy")
+            self.say("FL is loading the instruments…", "busy")
             shown = self.show_in_fl(first_pattern)
         self.flash.clear()
-        self.flash_cards(keys, GOOD, "已发送 ✓")
-        text = "已发送到 FL：" + "、".join(done)
+        self.flash_cards(keys, GOOD, "Sent ✓")
+        text = "Sent to FL: " + ", ".join(done)
         if with_pattern:
             count = sum(1 for k in keys if k.startswith("p"))
             numbers = f"#{first_pattern}" if count == 1 else f"#{first_pattern}–#{first_pattern + count - 1}"
-            where = f"音源是通道机架最下面新出现的通道（第 {first_channel + 1} 个起）。"
+            where = f" The instruments are the new channels at the bottom of the Channel Rack (from channel {first_channel + 1})."
             if shown:
-                text += f"\nFL 已切到新的 Pattern #{first_pattern}，音符就在通道机架里新音源那一行。" + where
+                text += (f"\nFL has switched to the new Pattern #{first_pattern}; the notes are in the new instruments' rows "
+                         "in the Channel Rack." + where)
                 if count > 1:
-                    text += f"这次的 Pattern 是 {numbers}。"
+                    text += f" The Patterns sent this time are {numbers}."
             else:
-                text += (f"\n音符在新的 Pattern {numbers} 里。FL 没有自动切过去：请在 FL 顶部的 Pattern 选择器里"
-                         f"选 #{first_pattern}，否则新音源那一行看起来是空的。" + where)
+                text += (f"\nThe notes are in the new Pattern {numbers}. FL did not switch to it: pick #{first_pattern} in the "
+                         "Pattern selector at the top of FL, otherwise the new instruments' rows look empty." + where)
         if several:
-            text += "\n现在开着多个 FL：由哪一个接收是 FL 决定的。"
+            text += "\nSeveral FL windows are open: FL decides which one receives."
         self.say(text, "ok")
 
     def show_in_fl(self, number: int) -> bool:
@@ -1112,7 +1125,7 @@ class App:
         while wins and live.fl_blocked(wins[0][0]) and time.time() < limit:
             if not told:                                     # e.g. a plugin's own notice
                 told = True
-                self.say("FL 里弹出了提示框（多半是插件自己的提示）。到 FL 里点掉它，这边会接着切到新 Pattern。", "bad")
+                self.say("FL is showing a dialog (most likely a plugin's own notice). Dismiss it in FL and the switch to the new Pattern continues.", "bad")
             self.root.update()
             time.sleep(0.1)
         time.sleep(0.3)
@@ -1129,7 +1142,7 @@ class App:
         except (FLPError, OSError) as exc:
             self.say(str(exc))
             return
-        self.say(f"文件在：{path}")
+        self.say(f"File: {path}")
         if sys.platform == "win32":
             subprocess.Popen(["explorer", "/select,", str(path)])
 
@@ -1139,8 +1152,8 @@ class App:
         keys = self.chosen()
         if not keys:
             return
-        target = filedialog.askopenfilename(title="合并进哪个工程？（会生成一份新副本，原文件不动）",
-                                            filetypes=[("FL Studio 工程", "*.flp")])
+        target = filedialog.askopenfilename(title="Merge into which project? (A new copy is written; the original is untouched)",
+                                            filetypes=[("FL Studio project", "*.flp")])
         if target:
             self.merge_into(target, keys)
 
@@ -1148,9 +1161,9 @@ class App:
         try:
             out, report = self.source.merge_into(target, keys)
         except (FLPError, OSError) as exc:
-            self.say(f"没有写入任何文件。\n{exc}")
+            self.say(f"No file was written.\n{exc}")
             return
-        self.say(f"已生成：{out}\n" + "；".join(report.lines()))
+        self.say(f"Created: {out}\n" + "; ".join(report.lines()))
         if sys.platform == "win32":
             subprocess.Popen(["explorer", "/select,", str(out)])
 
@@ -1197,7 +1210,7 @@ def main(initial: str | None = None) -> int:
         try:
             app.flash.clear()
             app.draw_marks()
-            app.say(f"出错了：{value}\n详细记录在 {path}", "bad")
+            app.say(f"Something went wrong: {value}\nDetails are logged in {path}", "bad")
         except Exception:
             pass
 

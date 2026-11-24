@@ -155,7 +155,7 @@ class LiveTest(unittest.TestCase):
         with mock.patch.object(live, "fl_blocked", side_effect=blocked), mock.patch.object(live, "press_save"):
             live.save_in_fl(5, str(path), timeout=2.5, notice=said.append, patience=20)
         self.assertEqual(len(said), 1)
-        self.assertIn("提示框", said[0])
+        self.assertIn("dialog", said[0])
 
         os.utime(path, (1000, 1000))
         calls["n"] = 0
@@ -167,7 +167,7 @@ class LiveTest(unittest.TestCase):
         with mock.patch.object(live, "fl_blocked", side_effect=stuck), \
                 mock.patch.object(live, "press_save"), self.assertRaises(live.LiveError) as caught:
             live.save_in_fl(5, str(path), timeout=2, patience=3)
-        self.assertIn("一直没有处理", str(caught.exception))
+        self.assertIn("never answered", str(caught.exception))
 
     def test_settings_are_kept_outside_the_scratch_folder(self):
         memo = self.root / "targets.json"

@@ -29,7 +29,7 @@ class ModelTest(unittest.TestCase):
         self.assertTrue(rows["c0"].draggable and rows["c1"].draggable)
         self.assertFalse(rows["c3"].draggable)                 # layer
         self.assertFalse(rows["p1"].draggable)                 # two channels: drag the parts
-        self.assertEqual((rows["p1c0"].parent, rows["p1c0"].detail), ("p1", "2 个音符"))
+        self.assertEqual((rows["p1c0"].parent, rows["p1c0"].detail), ("p1", "2 notes"))
         self.assertTrue(rows["p2"].draggable)                  # single channel
         self.assertFalse(rows["p3"].draggable)                 # no notes
         self.assertIn("kick.wav", rows["c0"].detail)

@@ -2,8 +2,8 @@
 
   python packaging/build.py
 
-  release/FL-Transfer-Setup-<version>.exe      installer: Start menu and desktop shortcuts, uninstaller
-  release/FL-Transfer-<version>-win64.zip      portable: unzip anywhere, start "FL Transfer.exe"
+  release/FL-Transfer-Setup-<version>-en.exe   installer: Start menu and desktop shortcuts, uninstaller
+  release/FL-Transfer-<version>-en-win64.zip   portable: unzip anywhere, start "FL Transfer.exe"
   release/FL Transfer/                         the program folder both are made from
 
 Needs PyInstaller, Pillow (once, for the icon) and, for the installer, NSIS 3: makensis on PATH,
@@ -32,15 +32,15 @@ TKDND = os.path.join(ROOT, "vendor", "tkinterdnd2", "tkdnd", "win-x64")
 VERSION_FILE = """VSVersionInfo(
   ffi=FixedFileInfo(filevers=({v}, 0), prodvers=({v}, 0), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1,
                     subtype=0x0, date=(0, 0)),
-  kids=[StringFileInfo([StringTable('080404B0', [
+  kids=[StringFileInfo([StringTable('040904B0', [
       StringStruct('FileDescription', 'FL Transfer'),
       StringStruct('ProductName', 'FL Transfer'),
       StringStruct('FileVersion', '{version}'),
       StringStruct('ProductVersion', '{version}'),
       StringStruct('InternalName', 'FL Transfer'),
       StringStruct('OriginalFilename', 'FL Transfer.exe'),
-      StringStruct('Comments', '在 FL Studio 工程之间搬运采样、乐器和 Pattern')])]),
-    VarFileInfo([VarStruct('Translation', [0x0804, 1200])])])
+      StringStruct('Comments', 'Move samples, instruments and Patterns between FL Studio projects')])]),
+    VarFileInfo([VarStruct('Translation', [0x0409, 1200])])])
 """
 
 NSI = r"""Unicode true
@@ -60,11 +60,11 @@ InstallDirRegKey HKCU "Software\FLTransfer" "InstallDir"
 BrandingText "${APP} ${VERSION}"
 
 VIProductVersion "@VERSION@.0"
-VIAddVersionKey /LANG=2052 "ProductName" "${APP}"
-VIAddVersionKey /LANG=2052 "FileDescription" "${APP} 安装程序"
-VIAddVersionKey /LANG=2052 "FileVersion" "${VERSION}"
-VIAddVersionKey /LANG=2052 "ProductVersion" "${VERSION}"
-VIAddVersionKey /LANG=2052 "LegalCopyright" "${APP}"
+VIAddVersionKey /LANG=1033 "ProductName" "${APP}"
+VIAddVersionKey /LANG=1033 "FileDescription" "${APP} Setup"
+VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
+VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "${APP}"
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -72,12 +72,12 @@ VIAddVersionKey /LANG=2052 "LegalCopyright" "${APP}"
 !define MUI_UNICON "@ICON@"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEFINISHPAGE_BITMAP "@WELCOME@"
-!define MUI_WELCOMEPAGE_TEXT "这将把 ${APP} ${VERSION} 安装到这台电脑上。$\r$\n$\r$\n${APP} 用来在 FL Studio 的工程之间搬运采样、乐器和 Pattern，Pattern 会带着它用到的音源一起过去。$\r$\n$\r$\n只为当前用户安装，不需要管理员权限。如果 ${APP} 正开着，请先关掉它。"
+!define MUI_WELCOMEPAGE_TEXT "This will install ${APP} ${VERSION} on this computer.$\r$\n$\r$\n${APP} moves samples, instruments and Patterns between FL Studio projects; a Pattern takes the instruments it uses with it.$\r$\n$\r$\nIt is installed for the current user only and needs no administrator rights. If ${APP} is running, close it first."
 !define MUI_COMPONENTSPAGE_NODESC
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE}"
-!define MUI_FINISHPAGE_RUN_TEXT "现在运行 ${APP}"
-!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\使用说明.txt"
-!define MUI_FINISHPAGE_SHOWREADME_TEXT "打开使用说明"
+!define MUI_FINISHPAGE_RUN_TEXT "Run ${APP} now"
+!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\User Guide.txt"
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "Open the user guide"
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 
 !insertmacro MUI_PAGE_WELCOME
@@ -87,33 +87,37 @@ VIAddVersionKey /LANG=2052 "LegalCopyright" "${APP}"
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
-!insertmacro MUI_LANGUAGE "SimpChinese"
-SetFont /LANG=${LANG_SIMPCHINESE} "Microsoft YaHei UI" 9
+!insertmacro MUI_LANGUAGE "English"
 
 !macro StopIfRunning
   ${If} ${FileExists} "$INSTDIR\${EXE}"
     ClearErrors
     FileOpen $0 "$INSTDIR\${EXE}" a
     ${If} ${Errors}
-      MessageBox MB_OK|MB_ICONEXCLAMATION "${APP} 正在运行。请先关掉它，再重新运行本程序。" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "${APP} is running. Close it first, then run this program again." /SD IDOK
       Abort
     ${EndIf}
     FileClose $0
   ${EndIf}
 !macroend
 
-Section "${APP}（必需）" SecMain
+Section "${APP} (required)" SecMain
   SectionIn RO
   !insertmacro StopIfRunning
   SetOutPath "$INSTDIR"
   RMDir /r "$INSTDIR\_internal"
+  ; what the Chinese edition leaves behind when this one is installed over it
+  Delete "$INSTDIR\使用说明.txt"
+  Delete "$INSTDIR\第三方许可.txt"
+  Delete "$SMPROGRAMS\${APP}\使用说明.lnk"
+  Delete "$SMPROGRAMS\${APP}\卸载 ${APP}.lnk"
   File /r "@FOLDER@\*.*"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\FLTransfer" "InstallDir" "$INSTDIR"
   CreateDirectory "$SMPROGRAMS\${APP}"
   CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\${EXE}"
-  CreateShortcut "$SMPROGRAMS\${APP}\使用说明.lnk" "$INSTDIR\使用说明.txt"
-  CreateShortcut "$SMPROGRAMS\${APP}\卸载 ${APP}.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortcut "$SMPROGRAMS\${APP}\User Guide.lnk" "$INSTDIR\User Guide.txt"
+  CreateShortcut "$SMPROGRAMS\${APP}\Uninstall ${APP}.lnk" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${UNKEY}" "DisplayName" "${APP}"
   WriteRegStr HKCU "${UNKEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNKEY}" "DisplayIcon" "$INSTDIR\${EXE}"
@@ -125,7 +129,7 @@ Section "${APP}（必需）" SecMain
   WriteRegDWORD HKCU "${UNKEY}" "EstimatedSize" @KB@
 SectionEnd
 
-Section "桌面快捷方式" SecDesktop
+Section "Desktop shortcut" SecDesktop
   CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\${EXE}"
 SectionEnd
 
@@ -133,19 +137,19 @@ Section "Uninstall"
   !insertmacro StopIfRunning
   Delete "$DESKTOP\${APP}.lnk"
   Delete "$SMPROGRAMS\${APP}\${APP}.lnk"
-  Delete "$SMPROGRAMS\${APP}\使用说明.lnk"
-  Delete "$SMPROGRAMS\${APP}\卸载 ${APP}.lnk"
+  Delete "$SMPROGRAMS\${APP}\User Guide.lnk"
+  Delete "$SMPROGRAMS\${APP}\Uninstall ${APP}.lnk"
   RMDir "$SMPROGRAMS\${APP}"
   RMDir /r "$INSTDIR\_internal"
   Delete "$INSTDIR\${EXE}"
-  Delete "$INSTDIR\使用说明.txt"
-  Delete "$INSTDIR\第三方许可.txt"
+  Delete "$INSTDIR\User Guide.txt"
+  Delete "$INSTDIR\Third-Party Licenses.txt"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   DeleteRegKey HKCU "${UNKEY}"
   DeleteRegKey HKCU "Software\FLTransfer"
   IfSilent done
-  MessageBox MB_YESNO|MB_ICONQUESTION "同时删除 ${APP} 的设置和临时文件吗？$\r$\n（不影响你的任何 FL 工程。）" IDNO done
+  MessageBox MB_YESNO|MB_ICONQUESTION "Also delete the settings and temporary files of ${APP}?$\r$\n(None of your FL projects are affected.)" IDNO done
   RMDir /r "$APPDATA\FLTransfer"
   RMDir /r "$TEMP\FLTransfer"
   done:
@@ -182,12 +186,12 @@ def build_program() -> None:
         "--exclude-module", "pydoc", "--exclude-module", "setuptools", "--exclude-module", "pip",
         "--distpath", RELEASE, "--workpath", WORK, "--specpath", WORK,
         os.path.join(HERE, "app.py")])
-    shutil.copyfile(os.path.join(HERE, "USER_GUIDE.txt"), os.path.join(FOLDER, "使用说明.txt"))
-    shutil.copyfile(os.path.join(HERE, "THIRD_PARTY.txt"), os.path.join(FOLDER, "第三方许可.txt"))
+    shutil.copyfile(os.path.join(HERE, "USER_GUIDE.txt"), os.path.join(FOLDER, "User Guide.txt"))
+    shutil.copyfile(os.path.join(HERE, "THIRD_PARTY.txt"), os.path.join(FOLDER, "Third-Party Licenses.txt"))
 
 
 def build_zip() -> int:
-    out = os.path.join(RELEASE, f"FL-Transfer-{__version__}-win64.zip")
+    out = os.path.join(RELEASE, f"FL-Transfer-{__version__}-en-win64.zip")
     if os.path.exists(out):
         os.remove(out)
     size = 0
@@ -206,7 +210,7 @@ def build_installer(size: int) -> bool:
     if not makensis:
         print("installer skipped: makensis (NSIS 3) not found")
         return False
-    out = os.path.join(RELEASE, f"FL-Transfer-Setup-{__version__}.exe")
+    out = os.path.join(RELEASE, f"FL-Transfer-Setup-{__version__}-en.exe")
     script = os.path.join(WORK, "installer.nsi")
     text = (NSI.replace("@VERSION@", __version__).replace("@OUT@", out).replace("@ICON@", ICON).replace("@WELCOME@", WELCOME)
             .replace("@FOLDER@", FOLDER).replace("@KB@", str(size // 1024)))

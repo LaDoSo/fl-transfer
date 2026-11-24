@@ -58,7 +58,7 @@ def main() -> int:
         path = gui.log_error(traceback.format_exc())
         try:
             from tkinter import messagebox
-            messagebox.showerror("FL Transfer", f"程序出错，已退出。\n详细记录在：\n{path}")
+            messagebox.showerror("FL Transfer", f"The program hit an error and has exited.\nDetails are logged in:\n{path}")
         except Exception:
             pass
         return 1

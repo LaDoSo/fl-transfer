@@ -1,115 +1,147 @@
-FL Transfer 1.2.0 使用说明
-==========================
+FL Transfer 1.2.0 User Guide
+============================
 
-把一个 FL Studio 工程里的采样、乐器和 Pattern，搬到另一个正在 FL 里打开的工程里。
-Pattern 会带着它用到的全部音源一起过去，音源内部的参数保持原样。
-采样可以先在窗口里试听，再决定搬哪一个。
-
-
-一、需要什么
-------------
-- Windows 10 / 11，64 位。不需要安装 Python 或其它东西。
-- FL Studio。本工具在 FL Studio 2025（25.2.5）上测试过，其它版本没有测试过。
-- 来源工程用到的插件（Serum、Keyscape 等）要装在这台电脑上，否则 FL 加载不出音源。
+Moves the samples, instruments and Patterns of one FL Studio project into another project
+that is open in FL.
+A Pattern takes every instrument it uses with it, and the instruments keep their settings.
+Samples can be auditioned in the window before you decide which one to move.
 
 
-二、怎么用
-----------
-1. 启动 FL Transfer：
-   - 安装版：运行 “FL-Transfer-Setup-1.2.0.exe” 装好后，从开始菜单或桌面的
-     “FL Transfer” 打开。安装只对当前用户生效，不需要管理员权限。
-   - 免安装版：解压整个压缩包到任意位置，双击里面的 “FL Transfer.exe”。
-     （整个文件夹要放在一起，不要只把 exe 单独拿出来。）
-2. 在 FL Studio 里打开“目标工程”，也就是要把东西加进去的那个。目标工程必须保存过（有文件名）。
-3. 在 FL Transfer 窗口顶部的“来源工程”里，选要从中取东西的 .flp
-   （下拉列表是 FL 最近打开过的工程；也可以点“浏览…”，或把 .flp 拖进窗口）。
-   想找某个采样，在“采样搜索”里输入文件名或通道名的一部分。右侧显示匹配数和采样总数。
-   在搜索框里按 Esc 或点“清除”可显示全部采样。被筛掉的采样会自动取消选中。
-4. 窗口里上半部分是 Pattern，下半部分是采样和乐器。把卡片搬进 FL 有三种方式，效果一样：
-   - 把卡片拖到 FL 窗口上松开；
-   - 双击卡片（采样卡片要双击标题栏；在波形上点击是试听，见第三节）；
-   - 单击选中（Ctrl / Shift 可多选），再点“发送到 FL”。
-5. 发 Pattern 时：
-   - 工具会先让 FL 保存一次目标工程（等于替你按 Ctrl+S）。第一次会问你是否同意。
-     这一步省不掉：音符要写明落在第几个通道上，而这个数只能从保存后的文件里读。
-   - 然后 FL 加载音源，新通道出现在通道机架最下面。
-   - 加载完后 FL 会自动切到新建的那个 Pattern，音符就在新音源那一行里。
-   - 窗口底部的状态栏会写明新 Pattern 是第几号。
-
-
-三、试听采样
-------------
-- 点采样卡片的波形：从点的那个位置开始播放。正在播放时点别的位置，就跳到那里接着放。
-- 点采样卡片标题栏左端的小三角：从头播放；再点一下停止。
-- 选中一张采样卡片后按空格：从头播放；再按一下停止。
-- 播放时波形上有一条竖线跟着走，播完自动停。按住 Ctrl / Shift 点击只是多选，不出声。
-- 声音从 Windows 的默认播放设备出来。听到的是采样的原始文件，
-  通道里的音高、裁剪、反向、音量这些设置不起作用。
-- wav 和 mp3 可以试听。flac、ogg 等 Windows 自带播放器放不了的格式不能试听，点了会在状态栏说明。
-- 很长的采样，从点的位置起一次最多连续放两分钟。
-- Pattern 和乐器不能试听。
-
-
-四、窗口里的按钮
+1. What you need
 ----------------
-发送到 FL                    把选中的卡片发给正在运行的 FL。
-合并到工程文件…              不通过 FL，直接把选中的内容写进另一个 .flp 的“新副本”，原文件不动。
-定位文件                      在资源管理器里显示这张卡片对应的文件。
-采样拖出为音频文件            打开后，采样卡片拖出去的是 wav 本身，而不是带通道设置的预设。
-发 Pattern 前自动保存 FL 工程  打开后发 Pattern 不再询问，直接保存再发。关着时每次都问。
-置顶                          让本窗口保持在最前面，方便往 FL 里拖。
+- Windows 10 / 11, 64-bit. Python or anything else does not have to be installed.
+- FL Studio. The tool was tested with FL Studio 2025 (25.2.5); other versions were not tested.
+- The plugins used by the source project (Serum, Keyscape and so on) must be installed on
+  this computer, otherwise FL cannot load the instruments.
 
 
-五、要知道的事
---------------
-- 发 Pattern 会保存目标工程。FL 每次保存都会在工程的 Backup 文件夹留一份 overwritten 备份；
-  不放心的话先把目标工程另存一份。
-- 发完 Pattern 后如果 FL 没有切到新 Pattern（比如当时 FL 弹着提示框），请在 FL 顶部的
-  Pattern 选择器里手动选状态栏写的那一号。停在别的 Pattern 上时，新音源那一行是空的，
-  这不代表音符没过去。
-- 来源工程读的是磁盘上保存的文件。在 FL 里改了来源工程，要先保存，再点“刷新”。
-- 同一个 Pattern 发两次，音源会加载两份。
-- 只发采样或乐器（不带 Pattern）不会保存目标工程。
-- 同时开着多个 FL 时，由哪一个接收是 FL 决定的。建议只开一个。
-- 插件加载时自己弹出的提示框（比如 Omnisphere 的素材库提示），点掉即可。
+2. How to use it
+----------------
+1. Start FL Transfer:
+   - Installer: run "FL-Transfer-Setup-1.2.0-en.exe", then open "FL Transfer" from the
+     Start menu or the desktop. It is installed for the current user only and needs no
+     administrator rights.
+   - Portable: unpack the whole archive anywhere and double-click "FL Transfer.exe" inside.
+     (Keep the whole folder together; do not take the exe out on its own.)
+2. In FL Studio, open the "target project", the one you want to add things to. The target
+   project must have been saved (it must have a file name).
+3. Under "Source project" at the top of the FL Transfer window, choose the .flp to take
+   things from (the drop-down lists the projects FL opened recently; you can also click
+   "Browse…", or drop a .flp onto the window).
+   To find a sample, type part of its file name or channel name into "Search samples". The
+   number of matches and the total number of samples are shown on the right.
+   Esc in the search box, or "Clear", shows all samples again. Samples that are filtered
+   out are deselected automatically.
+4. The upper part of the window holds the Patterns, the lower part the samples and
+   instruments. There are three ways to move a card into FL, all with the same result:
+   - drag the card onto the FL window and release it;
+   - double-click the card (for a sample card, double-click its title bar; a click on the
+     waveform auditions it, see section 3);
+   - click to select it (Ctrl / Shift selects several), then click "Send to FL".
+5. When a Pattern is sent:
+   - The tool first has FL save the target project once (the same as pressing Ctrl+S for
+     you). The first time, it asks whether you agree.
+     This step cannot be skipped: the notes have to say which channel they belong to, and
+     that number can only be read from the saved file.
+   - FL then loads the instruments; the new channels appear at the bottom of the Channel Rack.
+   - When loading has finished, FL switches to the new Pattern by itself; the notes are in
+     the rows of the new instruments.
+   - The status bar at the bottom of the window says which number the new Pattern has.
 
 
-六、不会带过去的东西
---------------------
-混音器上的效果器和路由、自动化剪辑、播放列表里的编排、Layer 通道、Pattern 里的事件自动化。
+3. Auditioning samples
+----------------------
+- Click the waveform of a sample card: playback starts from that position. Click another
+  position while it plays and it jumps there and carries on.
+- Click the small triangle at the left end of a sample card's title bar: plays from the
+  start; click again to stop.
+- Select one sample card and press Space: plays from the start; press again to stop.
+- A vertical line follows the playback on the waveform, and playback stops by itself at the
+  end. Ctrl / Shift-click only selects and makes no sound.
+- The sound comes out of the default Windows playback device. You hear the sample's original
+  file; the channel's pitch, trim, reverse and volume settings have no effect.
+- wav and mp3 can be auditioned. Formats that the player built into Windows cannot play,
+  such as flac and ogg, cannot be auditioned; clicking one explains this in the status bar.
+- A very long sample plays for at most two minutes from where you clicked.
+- Patterns and instruments cannot be auditioned.
 
 
-七、卸载
---------
-- 安装版：在 Windows 的“设置 → 应用 → 已安装的应用”里找到 FL Transfer 点卸载，
-  或用开始菜单里的“卸载 FL Transfer”。卸载时会问是否一并删除设置和临时文件。
-- 免安装版：先关掉程序，直接删除整个文件夹。
-- 设置保存在 %APPDATA%\FLTransfer，临时文件在 %TEMP%\FLTransfer，都可以手动删除。
-- 升级：直接运行新版安装程序，装到原来的位置即可，设置会保留。
+4. The buttons in the window
+----------------------------
+Send to FL                    Sends the selected cards to the running FL.
+Merge into file…              Without going through FL, writes the selection into a "new
+                              copy" of another .flp; the original file is untouched.
+Show file                     Shows the file behind this card in Explorer.
+Drag samples as audio         When on, dragging a sample card out gives the wav itself
+                              instead of a preset with the channel settings.
+Auto-save FL before Patterns  When on, sending a Pattern saves and sends without asking.
+                              When off, it asks every time.
+On top                        Keeps this window in front, which makes dragging into FL easier.
 
 
-八、常见问题
-------------
-问：运行安装程序或双击 exe 时 Windows 提示“已保护你的电脑”或杀毒软件拦截？
-答：程序没有数字签名。点“更多信息 → 仍要运行”，或在杀毒软件里加入信任。
+5. Good to know
+---------------
+- Sending a Pattern saves the target project. Each save in FL leaves an "overwritten" backup
+  in the project's Backup folder; if you are unsure, save a copy of the target project first.
+- If FL has not switched to the new Pattern after sending (for example because FL was
+  showing a dialog), pick the number given in the status bar yourself in the Pattern
+  selector at the top of FL. While FL is on another Pattern, the rows of the new instruments
+  are empty; that does not mean the notes did not arrive.
+- The source project is read from the file saved on disk. After changing the source project
+  in FL, save it first, then click "Refresh".
+- Sending the same Pattern twice loads its instruments twice.
+- Sending only samples or instruments (without a Pattern) does not save the target project.
+- With several FL windows open, FL decides which one receives. Keeping only one open is
+  recommended.
+- Dialogs that plugins show while loading (for example Omnisphere's library notice) only
+  need to be dismissed.
 
-问：提示“FL Studio 没有在运行”？
-答：先打开 FL 和目标工程，再发送。
 
-问：提示“FL 里开着的工程还没有保存过”？
-答：在 FL 里按 Ctrl+S 给目标工程起个名字保存一次。
+6. What is not carried over
+---------------------------
+Mixer effects and routing, automation clips, the Playlist arrangement, Layer channels, and
+event automation inside Patterns.
 
-问：保存时 FL 弹出 Invalid data（There are invalid notes in this project…）？
-答：目标工程里有指向不存在通道的音符。点“是”让 FL 删掉它们，工具会接着发送。
 
-问：发过去的音源没有声音或显示找不到插件？
-答：这台电脑上没装那个插件，或版本不同。
+7. Uninstalling
+---------------
+- Installer: find FL Transfer under "Settings → Apps → Installed apps" in Windows and click
+  Uninstall, or use "Uninstall FL Transfer" in the Start menu. The uninstaller asks whether
+  to delete the settings and temporary files as well.
+- Portable: close the program, then delete the whole folder.
+- Settings are kept in %APPDATA%\FLTransfer and temporary files in %TEMP%\FLTransfer; both
+  can be deleted by hand.
+- Upgrading: run the new installer and install to the same place; the settings are kept.
 
-问：试听没有声音？
-答：先确认 Windows 的默认播放设备是你正在听的那个（任务栏的小喇叭）。
-    如果 FL Studio 开着时没有声音、关掉 FL 就有，是 FL 的声卡驱动（ASIO）独占了声卡：
-    可以试试在 FL 的音频设置里换用 FL Studio ASIO。
 
-问：程序出错或没反应？
-答：错误记录在 %TEMP%\FLTransfer\error.log，把这个文件发给作者。
-    工具的临时文件也都在 %TEMP%\FLTransfer 里，可以随时删除。
+8. Questions and answers
+------------------------
+Q: Running the installer or the exe, Windows says "Windows protected your PC", or the
+   antivirus blocks it?
+A: The program has no digital signature. Click "More info → Run anyway", or add it to the
+   antivirus's trusted list.
+
+Q: It says "FL Studio is not running"?
+A: Open FL and the target project first, then send.
+
+Q: It says "The project open in FL has never been saved"?
+A: Press Ctrl+S in FL and save the target project once under a name.
+
+Q: While saving, FL shows "Invalid data" (There are invalid notes in this project…)?
+A: The target project contains notes that point to channels which do not exist. Click Yes to
+   let FL delete them; the tool then carries on sending.
+
+Q: An instrument that was sent makes no sound, or FL says the plugin cannot be found?
+A: That plugin is not installed on this computer, or it is a different version.
+
+Q: Auditioning makes no sound?
+A: First check that the default Windows playback device is the one you are listening to (the
+   speaker icon in the taskbar).
+   If there is no sound while FL Studio is open but there is once FL is closed, FL's audio
+   driver (ASIO) has taken the sound card for itself: try switching to FL Studio ASIO in
+   FL's audio settings.
+
+Q: The program fails or does not respond?
+A: Errors are logged in %TEMP%\FLTransfer\error.log; send that file to the author.
+   The tool's temporary files are all in %TEMP%\FLTransfer as well and can be deleted at
+   any time.

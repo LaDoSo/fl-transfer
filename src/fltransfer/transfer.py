@@ -118,11 +118,11 @@ class Report:
     missing_samples: list[str] = field(default_factory=list)
 
     def lines(self) -> list[str]:
-        out = [f"新增通道 #{d}：{name}（来源 #{s}）" for s, d, name in self.channels]
-        out += [f"复用已有通道 #{d}：{name}（来源 #{s}）" for s, d, name in self.reused]
-        out += [f"新增 Pattern #{d}：{name or '（未命名）'}，{n} 个音符（来源 #{s}）" for s, d, name, n in self.patterns]
-        out += [f"找不到采样文件：{m}" for m in self.missing_samples]
-        out += [f"注意：{w}" for w in self.warnings]
+        out = [f"new channel #{d}: {name} (source #{s})" for s, d, name in self.channels]
+        out += [f"reused existing channel #{d}: {name} (source #{s})" for s, d, name in self.reused]
+        out += [f"new Pattern #{d}: {name or '(unnamed)'}, {n} notes (source #{s})" for s, d, name, n in self.patterns]
+        out += [f"sample file not found: {m}" for m in self.missing_samples]
+        out += [f"note: {w}" for w in self.warnings]
         return out
 
 
@@ -154,7 +154,7 @@ class Transfer:
                     f"source (FL {src.version}) is newer than target (FL {dst.version}); "
                     "re-save the target in the newer FL first")
         if sv[:2] != dv[:2]:
-            self.report.warnings.append(f"来源是 FL {src.version} 存的，目标是 FL {dst.version} 存的")
+            self.report.warnings.append(f"the source was saved by FL {src.version}, the target by FL {dst.version}")
         if not (src.unicode and dst.unicode):
             raise TransferError("projects older than FL 11.5 are not supported")
         self.src_lay = Layout.of(src)
@@ -224,7 +224,7 @@ class Transfer:
         self.report.channels.append((src_iid, new_iid, info["name"]))
         if info["type"] == PLUGIN:
             self.report.warnings.append(
-                f"通道 {info['name']} 是插件（{info['internal']}），目标电脑上要装有这个插件")
+                f"channel {info['name']} is a plugin ({info['internal']}); the target computer needs that plugin installed")
         return new_iid
 
     def reuse_channel(self, src_iid: int, dst_iid: int) -> None:
@@ -261,7 +261,7 @@ class Transfer:
                     head.append(Event(e.id, self._remap_notes(e.data, scale)))
                 elif e.id == flp.PAT_CTRL and e.data:
                     self.report.warnings.append(
-                        f"Pattern #{src_num} 里的事件自动化（{len(e.data) // 12} 个点）没有复制")
+                        f"the event automation in Pattern #{src_num} ({len(e.data) // 12} points) was not copied")
         meta: list[Event] = []
         taken = {d["name"] for d in self.dst.patterns().values() if d["name"]}
         name = info["name"]

@@ -177,7 +177,7 @@ class _WaveOut:
         err = mm.waveOutOpen(ctypes.byref(self.handle), 0xFFFFFFFF, ctypes.byref(fmt), 0, 0, 0)   # WAVE_MAPPER
         if err:
             self.handle = None
-            raise AuditionError("打不开声音输出设备：" + self._text(err))
+            raise AuditionError("Cannot open the sound output device: " + self._text(err))
         self.buffer = ctypes.create_string_buffer(pcm.data, len(pcm.data))
         self.header = WAVEHDR(ctypes.addressof(self.buffer), len(pcm.data), 0, 0, 0, 0, None, 0)
         size = ctypes.sizeof(self.header)
@@ -185,12 +185,12 @@ class _WaveOut:
             mm.waveOutWrite(self.handle, ctypes.byref(self.header), size)
         if err:
             self.close()
-            raise AuditionError("声音没有播出来：" + self._text(err))
+            raise AuditionError("The sound did not play: " + self._text(err))
 
     def _text(self, err: int) -> str:
         buf = self._ctypes.create_unicode_buffer(256)
         self._mm.waveOutGetErrorTextW(err, buf, 256)
-        return buf.value.strip() or f"错误 {err}"
+        return buf.value.strip() or f"error {err}"
 
     @property
     def seconds(self) -> float:
@@ -246,7 +246,7 @@ class _Mci:
         if err:
             text = self._ctypes.create_unicode_buffer(256)
             self._mm.mciGetErrorStringW(err, text, 255)
-            raise AuditionError(text.value.strip() or f"MCI 错误 {err}")
+            raise AuditionError(text.value.strip() or f"MCI error {err}")
         return buf.value
 
     def position(self) -> float:
@@ -272,18 +272,18 @@ class _Mci:
 
 def _open_wave(pcm: Pcm):
     if sys.platform != "win32":
-        raise AuditionError("试听只在 Windows 上可用")
+        raise AuditionError("Auditioning is only available on Windows")
     return _WaveOut(pcm)
 
 
 def _open_file(path, at: float = 0.0):
     if sys.platform != "win32":
-        raise AuditionError("试听只在 Windows 上可用")
+        raise AuditionError("Auditioning is only available on Windows")
     try:
         return _Mci(path, at)
     except AuditionError as exc:
-        kind = str(path).rsplit(".", 1)[-1].lower() if "." in str(path) else "这种"
-        raise AuditionError(f"{kind} 文件试听不了：Windows 自带的播放器不支持（{exc}）") from None
+        kind = str(path).rsplit(".", 1)[-1].lower() if "." in str(path) else "these"
+        raise AuditionError(f"{kind} files cannot be auditioned: the player built into Windows does not support them ({exc})") from None
 
 
 # ---- what the window uses -----------------------------------------------------------------------
@@ -351,12 +351,12 @@ class Player:
     def _begin(self, result) -> None:
         try:
             if isinstance(result, Exception):
-                raise AuditionError(f"读不了这个文件：{result}")
+                raise AuditionError(f"Cannot read this file: {result}")
             if result is None:
                 self._out = self._open_file(self.path, self._at) if self._at else self._open_file(self.path)
                 self.cut = False
             elif not result.data:
-                raise AuditionError("这个采样是空的")
+                raise AuditionError("This sample is empty")
             else:
                 self._out, self.cut = self._open_wave(result), result.cut
             self.state = "playing"

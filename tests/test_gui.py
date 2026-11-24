@@ -61,7 +61,7 @@ class GuiSearchTests(unittest.TestCase):
         self.assertEqual(list(app.boxes), ["p1"])
         self.assertEqual(app.sample_search_count.get(), "0 / 3")
         labels = [app.canvas.itemcget(i, "text") for i in app.canvas.find_all() if app.canvas.type(i) == "text"]
-        self.assertIn("没有找到匹配的采样", labels)
+        self.assertIn("No matching samples", labels)
         app.clear_sample_search()
         self.assertEqual(list(app.boxes), ["p1", "c0", "c1", "c2"])
         self.assertEqual(app.sample_search_count.get(), "3 / 3")

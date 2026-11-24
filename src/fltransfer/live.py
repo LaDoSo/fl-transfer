@@ -82,14 +82,14 @@ def send(path, exe: str | None = None, require_running: bool = True) -> str:
     """Pass one .fst / .fsc file to the running FL Studio. Returns the executable used."""
     path = Path(path)
     if path.suffix.lower() not in SENDABLE:
-        raise LiveError(f"只能发送 .fst 或 .fsc，不能发送 {path.suffix or path.name}")
+        raise LiveError(f"Only .fst or .fsc files can be sent, not {path.suffix or path.name}")
     if not path.is_file():
-        raise LiveError(f"文件不存在：{path}")
+        raise LiveError(f"File not found: {path}")
     exe = exe or find_fl()
     if not exe:
-        raise LiveError("没有找到 FL Studio 的安装位置")
+        raise LiveError("Could not find where FL Studio is installed")
     if require_running and fl_running() == 0:
-        raise LiveError("FL Studio 没有在运行。先在 FL 里打开目标工程，再发送。")
+        raise LiveError("FL Studio is not running. Open the target project in FL first, then send.")
     reap()
     _helpers.append(subprocess.Popen([exe, str(path)], close_fds=True))
     return exe
@@ -289,10 +289,10 @@ def save_in_fl(hwnd: int, path: str, timeout: float = 45.0, notice=None, patienc
     try:
         before = os.path.getmtime(path)
     except OSError as exc:
-        raise LiveError(f"读不了目标工程 {path}：{exc}")
+        raise LiveError(f"Cannot read the target project {path}: {exc}")
     name = os.path.basename(path)
     if fl_blocked(hwnd):
-        raise LiveError("FL 里开着一个对话框，现在没法让它保存。没有发送。\n请先在 FL 里把对话框处理掉，再发一次。")
+        raise LiveError("FL has a dialog open, so it cannot be asked to save right now. Nothing was sent.\nDeal with the dialog in FL first, then send again.")
     press_save(hwnd)
     start = time.time()
     limit = start + timeout
@@ -306,8 +306,9 @@ def save_in_fl(hwnd: int, path: str, timeout: float = 45.0, notice=None, patienc
                     told = True
                     limit = max(limit, start + patience)
                     if notice:
-                        notice(f"FL 在保存 {name} 时弹出了提示框，正在等你到 FL 里回答它…\n"
-                               "如果是 Invalid data（有无效音符，保存时会删掉），那是之前没对上通道的音符，点“是”即可。")
+                        notice(f"FL showed a dialog while saving {name}; waiting for you to answer it in FL…\n"
+                               "If it is “Invalid data” (invalid notes, deleted on save), those are notes that missed "
+                               "their channels earlier: just click Yes.")
                 elif told and not blocked and not answered:
                     answered = True                      # box gone: the save follows at once, or not at all
                     limit = min(limit, time.time() + 15)
@@ -321,11 +322,11 @@ def save_in_fl(hwnd: int, path: str, timeout: float = 45.0, notice=None, patienc
         except (OSError, FLPError):
             continue
     if answered:
-        raise LiveError(f"FL 的提示框关掉了，但 {name} 没有保存（是不是点了“否”？）。没有发送。")
+        raise LiveError(f"FL's dialog was closed, but {name} was not saved (did you click No?). Nothing was sent.")
     if told:
-        raise LiveError(f"FL 弹出的提示框一直没有处理，{name} 没有保存下来。没有发送。\n到 FL 里处理掉提示框，再发一次。")
-    raise LiveError(f"FL 没有把 {name} 保存下来（FL 里可能开着对话框，或者正忙）。没有发送。\n"
-                    "请在 FL 里手动 Ctrl+S 之后再发。")
+        raise LiveError(f"The dialog FL showed was never answered, so {name} was not saved. Nothing was sent.\nDeal with the dialog in FL, then send again.")
+    raise LiveError(f"FL did not save {name} (it may have a dialog open, or be busy). Nothing was sent.\n"
+                    "Press Ctrl+S in FL yourself, then send again.")
 
 
 def remember_path(path) -> None:
@@ -417,11 +418,11 @@ def find_target(path=None, known=(), save: bool = False, notice=None) -> Target:
     name = None
     if path is None:
         if not wins:
-            raise LiveError("FL Studio 没有在运行。先在 FL 里打开目标工程，再发送。")
+            raise LiveError("FL Studio is not running. Open the target project in FL first, then send.")
         name = title_project(wins[0][2])
         if name is None:
-            raise TargetUnknown("FL 里开着的工程还没有保存过，读不到它有多少个通道。\n"
-                                "带音源发送 Pattern 需要这个数：请先在 FL 里 Ctrl+S 存一次，再发送。")
+            raise TargetUnknown("The project open in FL has never been saved, so its channel count cannot be read.\n"
+                                "Sending a Pattern with its instruments needs that number: press Ctrl+S in FL once, then send.")
         from .model import recent_projects
         remembered = _memo().get("paths", {}).get(name.lower())
         for cand in ([remembered] if remembered else []) + [str(k) for k in known] + recent_projects(60):
@@ -429,11 +430,11 @@ def find_target(path=None, known=(), save: bool = False, notice=None) -> Target:
                 path = cand
                 break
         if path is None:
-            raise TargetUnknown(f"FL 里开着的是 {name}，但不知道这个文件放在哪里。", name)
+            raise TargetUnknown(f"FL has {name} open, but it is not known where that file is.", name)
     path = os.path.abspath(str(path))
     if save:
         if not wins or title_project(wins[0][2]) is None:
-            raise LiveError("FL 没有开着已保存过的工程，没法让它保存。")
+            raise LiveError("FL has no saved project open, so it cannot be asked to save.")
         save_in_fl(wins[0][0], path, notice=notice)
         data = _memo()
         if data.pop("unsure", None) is not None:
@@ -442,7 +443,7 @@ def find_target(path=None, known=(), save: bool = False, notice=None) -> Target:
         project = Project.load(path)
         mtime = os.path.getmtime(path)
     except (OSError, FLPError) as exc:
-        raise LiveError(f"读不了目标工程 {path}：{exc}")
+        raise LiveError(f"Cannot read the target project {path}: {exc}")
     numbers = [e.value for e in project.events if e.id == flp.PAT_NEW]
     target = Target(name or os.path.basename(path), path, pid, mtime, project.ppq,
                     len(project.channels()), max(numbers, default=0))
